@@ -1,0 +1,60 @@
+#!/bin/zsh
+
+setopt extendedglob
+yum=/var/cache/yum
+
+function die { echo 1>&2 $*; exit 1 }
+function release_number {
+    local release=$1 outVarName=$2
+    zmodload zsh/regex
+    [[ $release -regex-match '([[:digit:]]+)' ]] || return 1
+    integer -g "$outVarName=$MATCH"
+}
+
+release_number "$(< /etc/redhat-release)" relno ||
+die "Can't find redht release number"
+
+if [[ -d $yum/$CPUTYPE/$relno ]]; then
+    repodir=$yum/$CPUTYPE/$relno
+    dbfile=\*primary.'(xml.gz.)#'sqlite
+elif [[ -d $yum/fedora ]]; then
+    repodir=$yum
+    dbfile=\*primary.sqlite
+else
+    repodir=$yum
+    dbfile=primary.xml.gz.sqlite
+fi
+repos=($repodir/^(firefox*|*debuginfo)/$~dbfile)
+
+WHERE=''
+if ((ARGC)); then
+    if ((ARGC == 1)) && [[ $1 != *=* ]]; then
+	WHERE="where name glob "\'$1\'
+    else
+	where=()
+	integer i
+	local name value
+	for arg in $argv; do
+	    i=$arg[(ri)=]
+	    if (($#arg < $i)); then
+		die "Invalid search spec: $arg";
+	    fi
+	    name=$arg[1,$i-1]
+	    value=$arg[$i+1,-1]
+	    where+=("$name glob ${(qq)value}")
+	done
+	WHERE="WHERE ${(j/ AND /)where}"
+    fi
+fi
+
+nltab=$'\n\t'
+
+for db in $repos; do
+    # repo=${${db#/var/cache/yum/}%/$dbfile}
+    repo=${${db#/var/cache/yum/}:h}
+    sql='select name, version, release, '${(qqq)repo}
+    sql+=', '${(qqq)nltab}' || summary from packages '$WHERE' order by name'
+    [[ -n $DEBUG ]] && echo sql=$sql
+    sqlite3 -separator $'\t' $db $sql
+done
+
