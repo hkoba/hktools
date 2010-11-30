@@ -1,0 +1,56 @@
+#!/bin/zsh
+
+config=/etc/sysconfig/syscheck.env
+
+[[ -r $config ]] || exit
+
+set -e
+source $config
+
+# [1] SVK difference notification
+
+export SVKROOT=/root/.svk
+for d in $svkwatches; do
+   [[ -d $d ]] || continue
+   pushd $d
+   { svk status } always { popd }
+done
+
+# [2] permission enforcement
+
+zmodload zsh/stat
+for d should in $perm_ensure; do
+   now=${"$(stat -o +mode $d)"[-4,-1]}
+   [[ $now = $should ]] && continue
+   print "$d should be changed to $should (from $now)"
+   chmod $should $d
+done
+
+# [3] ownership enforcement
+for d should in $owner_ensure; do
+    stat -sH now $d || continue
+    ug=(${(s/:/)should})
+    if (($#ug == 2)); then
+	[[ $now[uid] == $ug[1] && $now[gid] == $ug[2] ]] && continue
+    else
+	[[ $now[uid] == $ug[1] ]] && continue
+    fi
+    print "$d should be changed to $should (from $now[uid]:$now[gid])"
+    chown $should $d
+done
+
+# [4] should be removed even after yum.
+
+for f in $ensure_removed; do
+    [[ -e $f ]] || continue
+    print "$f should be removed"
+    rm -f $f
+done
+
+# [5] rpm should be removed
+
+for pkg in $rpm_ensure_removed; do
+   rpm -q $pkg 2>/dev/null || continue
+   print "$pkg should be removed"
+   rpm -e $pkg
+done
