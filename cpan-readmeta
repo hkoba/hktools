@@ -1,0 +1,65 @@
+#!/usr/bin/perl -wl
+use strict;
+use warnings FATAL => qw(all);
+sub MY () {__PACKAGE__}
+
+use YAML::Tiny;
+use Data::Dumper;
+
+my $cmd = "requires";
+if (@ARGV and $ARGV[0] =~ m{^--(\w+)}) {
+  $cmd = $1; shift;
+}
+
+my $sub = MY->can("cmd_$cmd")
+  or die "No such command: $cmd\n";
+
+my @result = $sub->(MY, @ARGV);
+
+print for map {
+  unless (defined $_) { '' }
+  elsif (ref $_) { terse_dump($_) }
+  else { $_ }
+} @result;
+
+if (not @result or @result == 1 and ($result[0] // '') eq '') {
+  exit 1;
+}
+
+sub load {
+  shift;
+  map {
+    YAML::Tiny->read($_) or die YAML::Tiny->errstr;
+  } @_;
+}
+
+sub cmd_requires {
+  my $pack = shift;
+  my (%uniq, @res);
+  foreach my $yaml ($pack->load(@_)) {
+    my $line = $yaml->[0] or next;
+    my $reqhash = $line->{requires} or next;
+    foreach my $req (keys %$reqhash) {
+      my $spec = $req;
+      $spec .= " " . $reqhash->{$req} if $reqhash->{$req};
+      next if $uniq{$spec}++;
+      push @res, $spec;
+    }
+  }
+  @res;
+}
+
+sub cmd_yumrequires {
+  my $pack = shift;
+  my @res;
+  foreach my $spec ($pack->cmd_requires(@_)) {
+    my ($name, $min) = split " ", $spec, 2;
+    # push @res, $min ? "perl($name) >= $min" : "perl($name)";
+    push @res, "perl($name)";
+  }
+  @res;
+}
+
+sub terse_dump {
+  Data::Dumper->new(\@_)->Terse(1)->Indent(0)->Dump;
+}
