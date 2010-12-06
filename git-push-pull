@@ -1,0 +1,36 @@
+#!/bin/zsh
+# To allow pushing to development repo, without harming repo-configuration.
+
+set -e
+setopt err_return extendedglob
+
+function die { echo 1>&2 $*; exit 1 }
+function diecat { cat 1>&2; exit 1 }
+
+zparseopts -D h=o_help -help=o_help || exit 1
+
+if (($#o_help)); then
+    diecat <<EOF
+Usage: ${0:t} ?REMOTE? ?LOCAL_BRANCH?
+
+This command synchronizes all commits of two repos.
+First, REMOTE will pull commits from current repository.
+And then, current repository will pull back commits from REMOTE.
+
+If REMOTE is omitted, 'origin' is used.
+EOF
+fi
+
+REMOTE=${1:-origin};
+LOCAL_BRANCH=${2:-master}; # Note. This is for local side.
+git remote show $REMOTE -n | sed -n 's/^ *Fetch URL: //p' | read remote
+[[ -n $remote ]] || die Can\'t find remote! REMOTE=$REMOTE
+
+if [[ $remote == /* && $remote != *.git ]]; then
+    SRC=$PWD
+    pushd $remote; git pull $SRC $LOCAL_BRANCH; popd
+else
+    git push $remote
+fi
+
+git pull origin $LOCAL_BRANCH
