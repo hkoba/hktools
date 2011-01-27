@@ -3,13 +3,20 @@
 package require snit
 package require BWidget
 
-# paper size selection/saving
-# DPI
+# XXX: Focus management.
+# XXX: Shift-Return
+
+# XXX: Cancel button
+
+# XXX: -filefmt, -dirfmt combobox, pwd entry
+# XXX: paper size selection/saving
+# XXX: DPI
+# XXX: tooltip
 
 snit::widget scanadf {
     component myScannerList
 
-    option -verbose 1
+    option -verbose 0
     option -debug no
 
     option -npages 60
@@ -279,9 +286,9 @@ snit::widget scanadf {
 		    $self emit $line\n ok
 		} elseif {[regexp {^Scanned (\d+) pages} $line -> pages]} {
 		    if {$pages == $myExpectedPages} {
-			$self emit $line\n error
-		    } else {
 			$self emit $line\n done
+		    } else {
+			$self emit $line\n error
 		    }
 		    $self Finish
 		} elseif {[regexp jammed $line]} {
@@ -314,4 +321,6 @@ if {[info level] == 0 && $::argv0 eq [info script]} {
     pack [scanadf .win {*}$::argv] -fill both -expand yes
 }
 
-#
+# Local Variables: **
+# coding: utf-8 **
+# End: **
