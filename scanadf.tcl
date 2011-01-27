@@ -6,6 +6,8 @@ package require BWidget
 # XXX: Focus management.
 # XXX: Shift-Return
 
+# XXX: gthum preview
+# XXX: note saving.
 # XXX: Cancel button
 
 # XXX: -filefmt, -dirfmt combobox, pwd entry
@@ -67,21 +69,26 @@ snit::widget scanadf {
 		 -to 100000]\
 	    [button $f.back -text << -command [list $self history back]]\
 	    [button $f.forw -text >> -command [list $self history forw]]\
+	    [button $f.cancel -text Cancel -command [list $self Cancel]]\
 	    -side left
 	$self history update
 
-	gridrow r [spinbox $bf.b[incr i] {*}$o \
+	gridrow r [spinbox [set UntilEnd $bf.b[incr i]] {*}$o \
 		       -textvariable [myvar options(-end)] \
-		       -to 100000] \
+		       -to 100000 ] \
 	    {-sticky e} \
 	    [button $bf.b[incr i] -text このページまでスキャン \
 		 -command [list $self Scan UntilEnd]]  \
 	    {-sticky ew}
+	foreach ev {Return KP_Enter} {
+	    bind $UntilEnd <$ev> [list $self Scan UntilEnd]
+	}
+	bind $UntilEnd <1> [list $UntilEnd selection range 0 end]
 	gridrow r [ttk::combobox $bf.b[incr i] {*}$o \
 		  -textvariable [myvar options(-npages)] \
 		       -values $options(-npages-choice)] \
 	    {-sticky e} \
-	    [button $bf.b[incr i] -text ページ分だけスキャン \
+	    [button [set NPages $bf.b[incr i]] -text ページ分だけスキャン \
 		 -command [list $self Scan NPages]] \
 	    {-sticky ew}
 
@@ -99,6 +106,12 @@ snit::widget scanadf {
 	$self setup message
 
 	pack {*}$frames -side top -fill both -expand yes
+	foreach w [list $win {*}$frames] {
+	    foreach ev {Return KP_Enter Key-space Tab} {
+		bind $w <$ev> [list focus $NPages]
+	    }
+	}
+	bind $win <Enter> [list focus $win]
 	
 	$self configurelist $args
 
@@ -201,8 +214,15 @@ snit::widget scanadf {
 	    list back active forw active
 	}]
 	
-	foreach {w state} $state {
+	foreach {w state} [linsert $state end cancel disabled] {
 	    $myPageHistFrm.$w configure -state $state
+	}
+    }
+    method Cancel {{state ""}} {
+	if {$state ne ""} {
+	    $myPageHistFrm.cancel configure -state $state
+	} elseif {$myTask ne ""} {
+	    exec kill [pid $myTask]
 	}
     }
     variable myExpectedPages ""
@@ -243,6 +263,7 @@ snit::widget scanadf {
 	$self dputs cmd=$cmd
 	set myTask [open [list | {*}$cmd]]
 	fileevent $myTask readable [list $self readable $myTask]
+	$self Cancel active
     }
 
     method {opt resolution} {} {
