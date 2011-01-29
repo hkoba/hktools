@@ -95,8 +95,15 @@ snit::widget scanadf {
 	set r 0
 	gridrow r [label $f.w[incr i] -text この本のディレクトリ] \
 	    {-sticky ne} \
-	    [entry $f.w[incr i] -textvariable [myvar curBook]]\
+	    [frame [set sf $f.w[incr i]]]\
 	    {-sticky nw}
+	pack [entry $sf.w[incr i] -textvariable [myvar curBook]] \
+	    -side left
+	
+	if {[file executable /usr/bin/gthumb]} {
+	    pack [button $sf.w[incr i] -image [Bitmap::get open] \
+		      -command [list $self preview]] \
+	}
 
 	gridrow r [label $f.w[incr i] -text ファイル名の書式] \
 	    {-sticky ne} \
@@ -257,15 +264,18 @@ snit::widget scanadf {
 	error $line
     }
     method Finish {result} {
+	fileevent $myTask readable ""
 	set myLastScanResult $result
 	$self history update
-	$self finish run
+	if {[catch {$self finish run} error]} {
+	    $self emit hook-error=$error\n error
+	}
 	if {[catch {close $myTask} error]} {
 	    $self emit $error\n error
 	}
 	set myTask ""; # assert {$myTask eq $chan}
     }
-    variable myFinishHook
+    variable myFinishHook ""
     method {finish add} hook {
 	lappend myFinishHook $hook
     }
@@ -370,6 +380,10 @@ snit::widget scanadf {
 	foreach {w state} [linsert $state end cancel disabled] {
 	    $myPageHistFrm.$w configure -state $state
 	}
+    }
+    #========================================
+    method preview {} {
+	exec -ignorestderr gthumb [file join $options(-chdir) $curBook] &
     }
     #========================================
     component myMessage
