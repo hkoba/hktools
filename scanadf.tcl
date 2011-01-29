@@ -3,14 +3,11 @@
 package require snit
 package require BWidget
 
-# XXX: Focus management.
-
 # XXX: gthumb preview
 # XXX: note saving.
 
-# XXX: -filefmt, -dirfmt combobox, pwd entry
-# XXX: paper size selection/saving
-# XXX: DPI
+# XXX: pwd entry
+# XXX: paper size selection/saving, DPI
 # XXX: tooltip
 
 snit::widget scanadf {
@@ -22,16 +19,45 @@ snit::widget scanadf {
 
     option -mode Gray
 
-    option -dir ""
-    option -dirfmt %Y%m%d-%H:%M
+    option -chdir ""
+    option -bookdirfmt %Y%m%d-%H:%M
     option -filefmt p%03d.pnm
+
+    option -preset body
+    component myPresetSelector
+    option -preset-dict [dict create \
+			     body [list -i 1 -mode Gray -filefmt p%03d.pnm] \
+			     heading \
+			     [list -i 1 -end 1 -next body \
+				  -mode Color -filefmt h%03d.pnm] \
+			     centercolor \
+			     [list -mode Color -filefmt p%03d.pnm] \
+			    ]
+    option -next
+    onconfigure -next preset {
+	$self finish add [list $self configure -preset $preset]
+    }
 
     constructor args {
 	$self setup menu
 
-	lappend frames [set bf [labelframe $win.bf -text スキャン]]
-	set o [list -width 5]
 	set i 0
+	#----------------------------------------
+	lappend frames [set f [labelframe $win.f[incr i] \
+				   -text 色 ]]; # 、画質、用紙サイズ
+	set r 0
+	gridrow r [ttk::radiobutton $f.w[incr i] -value Gray -text Gray \
+		       -variable [myvar options(-mode)]] \
+	    {} \
+	    [ttk::radiobutton $f.w[incr i] -value Color -text Color\
+		       -variable [myvar options(-mode)]] \
+	    {}
+
+	#----------------------------------------
+	lappend frames [set bf [labelframe $win.f[incr i] \
+				    -text ページ番号とスキャン枚数]]
+	set o [list -width 5]
+	set r 0;
 	gridrow r [label $bf.b[incr i] -text {Scanning Page}] \
 	    {-sticky e} \
 	    [frame [set f $bf.b[incr i]]] \
@@ -64,12 +90,48 @@ snit::widget scanadf {
 		 -command [list $self Scan NPages]] \
 	    {-sticky ew}
 
-	lappend frames [set f [labelframe $win.dir -text 保存ディレクトリ]]
-	pack [entry $f.dir -textvariable [myvar curBook]] -fill x -expand yes \
-	    -side left
-	pack [button $f.new -text 次の本へ \
-		  -command [list $self newbook]]
+	#----------------------------------------
+	lappend frames [set f [labelframe $win.f[incr i] -text 保存先]]
+	set r 0
+	gridrow r [label $f.w[incr i] -text この本のディレクトリ] \
+	    {-sticky ne} \
+	    [entry $f.w[incr i] -textvariable [myvar curBook]]\
+	    {-sticky nw}
 
+	gridrow r [label $f.w[incr i] -text ファイル名の書式] \
+	    {-sticky ne} \
+	    [ttk::combobox $f.w[incr i] -textvariable [myvar options(-filefmt)]\
+		 -values [list $options(-filefmt) s%003d.pnm]]\
+	    {-sticky nw}
+
+	gridrow r [button $f.w[incr i] -text 次の本へ(カウンタをリセット) \
+		       -command [list $self newbook]] \
+	    {} - {}
+	
+	#----------------------------------------
+	lappend frames [set f [labelframe $win.f[incr i] -text その他]]
+	set r 0
+	gridrow r [label $f.w[incr i] -text プリセット値の選択] \
+	    {-sticky ne} \
+	    [ttk::combobox [set myPresetSelector $f.preset] \
+		 -state readonly \
+		 -textvariable [myvar options(-preset)] \
+		 -postcommand [list apply [list {self w} {
+		     set ls {}
+		     foreach {k v} [$self cget -preset-dict] {
+			 lappend ls $k
+		     }
+		     $w configure -values $ls
+		 }] $self $myPresetSelector] \
+		]\
+	    {-sticky nw}
+	trace add variable [myvar options(-preset)] write \
+	    [list apply [list {self args} {
+		$self configure {*}[dict get [$self cget -preset-dict] \
+					[$self cget -preset]]
+	    }] $self]
+
+	#----------------------------------------
 	# paned?
 	lappend frames [set f [labelframe $win.notify -text コンソール]]
 	pack [ScrolledWindow [set sw $f.cons]] -fill both -expand yes
@@ -77,6 +139,7 @@ snit::widget scanadf {
 	$sw setwidget $myMessage
 	$self setup message
 
+	#========================================
 	pack {*}$frames -side top -fill both -expand yes
 	foreach w [list $win {*}$frames] {
 	    foreach ev {Return KP_Enter Key-space Tab} {
@@ -87,11 +150,11 @@ snit::widget scanadf {
 	
 	$self configurelist $args
 
-	if {$options(-dir) ne ""} {
-	    cd $options(-dir)
-	    set options(-dir) [pwd]
+	if {$options(-chdir) ne ""} {
+	    cd $options(-chdir)
+	    set options(-chdir) [pwd]
 	} else {
-	    set options(-dir) [pwd]
+	    set options(-chdir) [pwd]
 	}
 
 	$self newbook
@@ -132,13 +195,14 @@ snit::widget scanadf {
 
     option -i 1
     option -end ""
+    variable myLastScanResult ""
     variable myExpectedPages ""
     variable myTask ""
     variable curBook ""
     method newbook {} {
 	set options(-i) 1
 	$self history clear
-	set curBook [clock format [clock seconds] -format $options(-dirfmt)]
+	set curBook [clock format [clock seconds] -format $options(-bookdirfmt)]
     }
     method Scan {mode} {
 	if {$myTask ne ""} return
@@ -188,16 +252,31 @@ snit::widget scanadf {
     }
 
     method Error line {
-	after idle [list $self Finish]
+	after idle [list $self Finish error]
 	$self emit $line error
 	error $line
     }
-    method Finish {} {
+    method Finish {result} {
+	set myLastScanResult $result
 	$self history update
+	$self finish run
 	if {[catch {close $myTask} error]} {
 	    $self emit $error\n error
 	}
 	set myTask ""; # assert {$myTask eq $chan}
+    }
+    variable myFinishHook
+    method {finish add} hook {
+	lappend myFinishHook $hook
+    }
+    method {finish run} {} {
+	foreach hook $myFinishHook {
+	    uplevel #0 $hook
+	}
+	$self finish clear
+    }
+    method {finish clear} {} {
+	set myFinishHook ""
     }
 
     method {opt resolution} {} {
@@ -212,7 +291,7 @@ snit::widget scanadf {
 	set rc [catch {
 	    if {[eof $chan]} {
 		$self emit <EOF> warn
-		$self Finish
+		$self Finish eof
 	    } else {
 		gets $chan line
 		if {[regexp {^scanadf: (.*)} $line -> msg]} {
@@ -227,7 +306,7 @@ snit::widget scanadf {
 		    } else {
 			$self emit $line\n error
 		    }
-		    $self Finish
+		    $self Finish ok
 		} elseif {[regexp jammed $line]} {
 		    $self Error $line\n
 		} else {
