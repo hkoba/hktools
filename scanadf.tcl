@@ -7,7 +7,7 @@ package require BWidget
 # XXX: note saving.
 
 # XXX: pwd entry
-# XXX: paper size selection/saving, DPI
+# XXX: DPI
 # XXX: tooltip
 
 snit::widget scanadf {
@@ -38,20 +38,58 @@ snit::widget scanadf {
 	$self finish add [list $self configure -preset $preset]
     }
 
+    option -papersize 13x19
+    option -paper-width ""
+    option -paper-height ""
+
     constructor args {
 	$self setup menu
 
 	set i 0
 	#----------------------------------------
-	lappend frames [set f [labelframe $win.f[incr i] \
-				   -text 色 ]]; # 、画質、用紙サイズ
-	set r 0
-	gridrow r [ttk::radiobutton $f.w[incr i] -value Gray -text Gray \
-		       -variable [myvar options(-mode)]] \
-	    {} \
+	lappend frames [set bf [frame $win.bf[incr i]]]; # 、画質、用紙サイズ
+
+	pack [set f [labelframe $bf.f[incr i] -text 色 ]] -side left
+	pack [ttk::radiobutton $f.w[incr i] -value Gray -text Gray \
+		  -variable [myvar options(-mode)]] \
 	    [ttk::radiobutton $f.w[incr i] -value Color -text Color\
-		       -variable [myvar options(-mode)]] \
+		 -variable [myvar options(-mode)]] \
+	    -side top
+	    
+	pack [set f [labelframe $bf.f[incr i] -text 紙サイズ(mm) ]] -side left
+	set r 0
+	gridrow r [ttk::combobox [set w $f.b[incr i]] \
+		       -textvariable [myvar options(-papersize)] \
+		       -width 8 \
+		       -postcommand [list apply [list {self w type} {
+			   $w configure -values \
+			       [${type}::lmodulo [$self config get papersize] 2 0]
+		       }] $self $w $type]] \
+	    {} - {} - {} - {}
+	trace add variable [myvar options(-papersize)] write \
+	    [set task [list apply [list {self args} {
+		set psz [$self cget -papersize]
+		set cf [lassign [dict get [$self config get papersize] $psz] x y]
+		$self configure -paper-width $x -paper-height $y {*}$cf
+	    }] $self]]
+	after idle $task
+
+	set o [list -width 5]
+	gridrow r [label $f.s[incr i] -text W] \
+	    {} \
+	    [spinbox [set w1 $f.s[incr i]] {*}$o \
+		       -textvariable [myvar options(-paper-width)] \
+		       -to 1000] \
+	    {} \
+	    [label $f.s[incr i] -text H] \
+	    {} \
+	    [spinbox [set w2 $f.s[incr i]] {*}$o \
+		       -textvariable [myvar options(-paper-height)] \
+		       -to 1000] \
 	    {}
+	foreach w [list $w1 $w2] {
+	    bind $w <Return> [list $self papersize remember]
+	}
 
 	#----------------------------------------
 	lappend frames [set bf [labelframe $win.f[incr i] \
@@ -164,6 +202,8 @@ snit::widget scanadf {
 	    set options(-chdir) [pwd]
 	}
 
+	after idle [list $self config load]
+
 	$self newbook
 
 	if {$options(-debug)} {
@@ -172,10 +212,136 @@ snit::widget scanadf {
 	}
     }
 
+    variable cf_papersize [list 13x19 [list 130 190]]
+
+    variable myDialogResult ""
+    method {papersize remember} {} {
+	set okcancel [list Add Cancel]
+	set msg この用紙サイズに名前を付けてください
+	Dialog [set diag $win.diag] -cancel [lsearch $okcancel Cancel] \
+	    -title $msg
+	append msg "\nWidth $options(-paper-width)mm"
+	append msg "\nHeight $options(-paper-height)mm"
+	set f [$diag getframe]
+	set r 0; set i 0
+	gridrow r [message $f.msg -text $msg] {} - {}
+	gridrow r [label $f.w[incr i] -text 用紙名] \
+	    {} \
+	    [entry $f.w[incr i] -textvariable [myvar myDialogResult]] \
+	    {}
+	
+	foreach i $okcancel {
+	    $diag add -text $i
+	}
+	set ans [$diag draw [lsearch $okcancel Add]]
+	if {[lindex $okcancel $ans] eq "Cancel"} return
+	if {$myDialogResult eq ""} return
+	$self config lappend papersize $myDialogResult \
+	    [list $options(-paper-width) $options(-paper-height)]
+	$self configure -papersize $myDialogResult
+    }
+
+    ### Var Naming Convention for config load/save:
+    ## variable named cf_$name, both of scalar and array.
+
+    option -config -default "" -configuremethod {config load}
+    variable myConfigModified 0
+    method {config modified} args {
+	if {[llength $args]} {
+	    set myConfigModified [lindex $args 0]
+	} else {
+	    set myConfigModified
+	}
+    }
+    method {config load} args {
+	if {[llength $args] == 2} {
+	    lassign $args opt fn
+	    set options($opt) $fn
+	} elseif {$options(-config) ne ""} {
+	    set fn $options(-config)
+	} elseif {![file exists [set fn [$self config default-file]]]} {
+	    return
+	}
+	$self config read [read_file $fn]
+    }
+    method {config get} name { set cf_$name }
+    method {config lappend} {name args} {
+	lappend cf_$name {*}$args
+	$self config modified 0
+    }
+    method {config read} data {
+	foreach {cf value} $data {
+	    set vn cf_$cf
+	    if {[array exists $vn]} {
+		array unset $vn
+		array set $vn $value
+	    } elseif {[info exists $vn]} {
+		set $vn $value
+	    } else {
+		error "Unknown config item! $cf"
+	    }
+	}
+	$self config modified 0
+    }
+    method {config varlist} {{invert ""}} {
+	set varlist {}
+	foreach varName [lsort [info vars ${selfns}::*]] {
+	    set cfName [string range $varName [string length ${selfns}::] end]
+	    if {![regsub ^cf_ $cfName {} cfName]} continue
+	    if {$invert eq ""} {
+		lappend varlist $varName $cfName
+	    } else {
+		lappend varlist $cfName $varName
+	    }
+	}
+	set varlist
+    }
+    method {config dump} {} {
+	set dump ""
+	foreach {varName cfName} [$self config varlist] {
+	    if {[array exists $varName]} {
+		append dump $cfName " \{\n"
+		foreach key [lsort -dictionary [array names $varName]] {
+		    append dump "\t[list $key]"\
+			" [list [set [set varName]($key)]]\n"
+		}
+		append dump "\}\n"
+	    } elseif {[set len [llength [set $varName]]]
+		      && $len % 2 == 0} {
+		append dump $cfName " \{\n"
+		foreach {key val} [set $varName] {
+		    append dump "\t[list $key] [list $val]\n"
+		}
+		append dump "\}\n"
+	    } else {
+		append dump $cfName " [list [set $varName]]\n"
+	    }
+	}
+	set dump
+    }
+    method {config save} {} {
+	if {[set fn $options(-config)] eq ""} {
+	    set fn [$self config default-file]
+	}
+	write_file $fn [$self config dump]
+	$self config modified 0
+    }
+    method {config default-file} {} {
+	if {[info exists ::env(HOME)]} {
+	    return [file join $::env(HOME) \
+			.[file tail [file rootname $::argv0]].cfg]
+	} else {
+	    return [file rootname [file normalize $::argv0]].cfg
+	}
+    }
+
     method {setup menu} {} {
 	[winfo toplevel $win] configure -menu [menu [set m $win.menu]]
 
 	$m add cascade -label File -menu [menu $m.file]
+	$m.file add command -label "Save Config" \
+	    -command [list $self config save]
+	$m.file add separator
 	$m.file add command -label Quit -command exit
 
 	$m add cascade -label Option -menu [menu $m.option]
@@ -210,6 +376,8 @@ snit::widget scanadf {
 	set options(-i) 1
 	$self history clear
 	set curBook [clock format [clock seconds] -format $options(-bookdirfmt)]
+	$self emit newBook=$curBook ok
+	set curBook
     }
     method Scan {mode} {
 	if {$myTask ne ""} return
@@ -432,6 +600,34 @@ snit::widget scanadf {
 		    {*}$gridOpts
 	    }
 	}
+    }
+
+    proc lmodulo {list mod i args} {
+	array set dict {}
+	foreach i [linsert $args 0 $i] {
+	    set dict($i) 1
+	}
+	set result {}
+	for {set i 0} {$i < [llength $list]} {incr i} {
+	    if {![info exists dict([expr {$i % $mod}])]} continue
+	    lappend result [lindex $list $i]
+	}
+	set result
+    }
+
+    proc read_file {fn args} {
+	set fh [open $fn]
+	set data [read $fh]
+	close $fh
+	set data
+    }
+
+    proc write_file {fn str} {
+	set fh [open $fn w]
+	# trace add variable ... close
+	# fconfigure
+	puts -nonewline $fh $str
+	close $fh
     }
 }
 
