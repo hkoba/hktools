@@ -1,0 +1,5 @@
+#!/bin/zsh
+
+expr=($0:t \"${1:-$PWD}\" nil)
+# print -lR $expr
+emacsclient -n -e "($expr)"

@@ -24,7 +24,7 @@ my $logfile;
 #----------------------------------------
 GetOptions("o|output=s", \$logfile,
 	   "t|timefmt=s", \$timefmt,
-	   "ping_interval=i", \$ping_interval,
+	   "i|ping_interval=i", \$ping_interval,
 	   "s|summarize=i", \$summarize,
 	   "d|debug", \$DEBUG,
 	  )
