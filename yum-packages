@@ -26,10 +26,17 @@ else
 fi
 repos=($repodir/^(firefox*|*debuginfo)/$~dbfile)
 
+zparseopts -D s=opt_s
+
+column=name
+if [[ -n $opt_s ]]; then
+    column=summary
+fi
+
 WHERE=''
 if ((ARGC)); then
     if ((ARGC == 1)) && [[ $1 != *=* ]]; then
-	WHERE="where name glob "\'$1\'
+	WHERE="where $column glob "\'$1\'
     else
 	where=()
 	integer i
