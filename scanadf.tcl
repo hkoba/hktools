@@ -74,13 +74,16 @@ snit::widget scanadf {
 	#----------------------------------------
 	lappend frames [set bf [frame $win.bf[incr i]]]; # 、画質、用紙サイズ
 
-	pack [set f [labelframe $bf.f[incr i] -text 色 ]] -side left
+	pack [set f [labelframe $bf.f[incr i] -text 色/DPI ]] -side left
 	pack [ttk::radiobutton $f.w[incr i] -value Gray -text Gray \
 		  -variable [myvar options(-mode)]] \
 	    [ttk::radiobutton $f.w[incr i] -value Color -text Color\
 		 -variable [myvar options(-mode)]] \
+	    [ttk::combobox $f.w[incr i] -width 4\
+		 -textvariable [myvar options(-resolution)] \
+		 -values {100 300 600} ] \
 	    -side top
-	    
+
 	pack [set f [labelframe $bf.f[incr i] -text 紙サイズ(mm) ]] -side left
 	set r 0
 	gridrow r [ttk::combobox [set w $f.b[incr i]] \
@@ -502,8 +505,10 @@ snit::widget scanadf {
 	set myFinishHook ""
     }
 
+    option -resolution 100
     method {opt resolution} {} {
-	list --resolution 100 --y-resolution 100
+	list --resolution $options(-resolution) \
+	    --y-resolution $options(-resolution)
     }
     method {opt paper} {} {
 	list -x $options(-paper-width) -y $options(-paper-height) \
