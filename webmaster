@@ -1,0 +1,3 @@
+#!/bin/zsh
+
+exec sudo -u $0:t "$@"

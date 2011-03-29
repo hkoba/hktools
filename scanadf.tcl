@@ -31,16 +31,41 @@ snit::widget scanadf {
 			     [list -i 1 -end 1 -next body \
 				  -mode Color -filefmt h%03d.pnm] \
 			     centercolor \
-			     [list -mode Color -filefmt p%03d.pnm] \
-			    ]
+			     [list -mode Color -filefmt p%03d.pnm]]
+
+    # newbook で reset した後に、どんな設定に戻すか
+    option -reset-to
+
+    # このスキャンが終了した後に、preset 又は papersize を自動変更する
     option -next
-    onconfigure -next preset {
-	$self finish add [list $self configure -preset $preset]
+
+    onconfigure -next next {
+	if {$next eq ""} {
+	    # NOP
+	} elseif {[llength $next] >= 2} {
+	    $self finish add [list $self configure {*}$next]
+	} elseif {[dict exists [$self cget -preset-dict] $next]} {
+	    $self finish add [list $self configure -preset $next]
+	} elseif {[dict exists $cf_papersize $next]} {
+	    $self finish add [list $self configure -papersize $next]
+	} else {
+	    error "Unknown -next: $next"
+	}
     }
 
     option -papersize 13x19
     option -paper-width ""
     option -paper-height ""
+
+    variable cf_papersize [lrange {
+	13x19 {130 190}
+
+	少年漫画表紙 {172 376 -preset heading -next 少年漫画}
+	少年漫画 {110 172 -preset body -reset-to {-papersize 少年漫画表紙}}
+
+	少女漫画表紙 {176 381 -preset heading -next 少女漫画}
+	少女漫画 {110 176 -preset body -reset-to {-papersize 少女漫画表紙}}
+    } 0 end]
 
     constructor args {
 	$self setup menu
@@ -49,18 +74,21 @@ snit::widget scanadf {
 	#----------------------------------------
 	lappend frames [set bf [frame $win.bf[incr i]]]; # 、画質、用紙サイズ
 
-	pack [set f [labelframe $bf.f[incr i] -text 色 ]] -side left
+	pack [set f [labelframe $bf.f[incr i] -text 色/DPI ]] -side left
 	pack [ttk::radiobutton $f.w[incr i] -value Gray -text Gray \
 		  -variable [myvar options(-mode)]] \
 	    [ttk::radiobutton $f.w[incr i] -value Color -text Color\
 		 -variable [myvar options(-mode)]] \
+	    [ttk::combobox $f.w[incr i] -width 4\
+		 -textvariable [myvar options(-resolution)] \
+		 -values {100 300 600} ] \
 	    -side top
-	    
+
 	pack [set f [labelframe $bf.f[incr i] -text 紙サイズ(mm) ]] -side left
 	set r 0
 	gridrow r [ttk::combobox [set w $f.b[incr i]] \
 		       -textvariable [myvar options(-papersize)] \
-		       -width 8 \
+		       -width 20 \
 		       -postcommand [list apply [list {self w type} {
 			   $w configure -values \
 			       [${type}::lmodulo [$self config get papersize] 2 0]
@@ -69,7 +97,9 @@ snit::widget scanadf {
 	trace add variable [myvar options(-papersize)] write \
 	    [set task [list apply [list {self args} {
 		set psz [$self cget -papersize]
-		set cf [lassign [dict get [$self config get papersize] $psz] x y]
+		set dic [dict get [$self config get papersize] $psz]
+		# puts dic=$dic
+		set cf [lassign $dic x y]
 		$self configure -paper-width $x -paper-height $y {*}$cf
 	    }] $self]]
 	after idle $task
@@ -146,7 +176,7 @@ snit::widget scanadf {
 	gridrow r [label $f.w[incr i] -text ファイル名の書式] \
 	    {-sticky ne} \
 	    [ttk::combobox $f.w[incr i] -textvariable [myvar options(-filefmt)]\
-		 -values [list $options(-filefmt) s%003d.pnm]]\
+		 -values [list $options(-filefmt) h%003d.pnm]]\
 	    {-sticky nw}
 
 	gridrow r [button $f.w[incr i] -text 次の本へ(カウンタをリセット) \
@@ -178,15 +208,16 @@ snit::widget scanadf {
 
 	#----------------------------------------
 	# paned?
-	lappend frames [set f [labelframe $win.notify -text コンソール]]
+	set f [labelframe $win.notify -text コンソール]
 	pack [ScrolledWindow [set sw $f.cons]] -fill both -expand yes
 	install myMessage using text $sw.t -height 6 -width 38 -wrap none
 	$sw setwidget $myMessage
 	$self setup message
 
 	#========================================
-	pack {*}$frames -side top -fill both -expand yes
-	foreach w [list $win {*}$frames] {
+	pack {*}$frames -side top -fill both -expand no
+	pack $f -side top -fill both -expand yes
+	foreach w [list $win {*}$frames $f] {
 	    foreach ev {Return KP_Enter Key-space Tab} {
 		bind $w <$ev> [list focus $NPages]
 	    }
@@ -212,13 +243,15 @@ snit::widget scanadf {
 	}
     }
 
-    variable cf_papersize [list 13x19 [list 130 190]]
-
     variable myDialogResult ""
     method {papersize remember} {} {
 	set okcancel [list Add Cancel]
 	set msg この用紙サイズに名前を付けてください
-	Dialog [set diag $win.diag] -cancel [lsearch $okcancel Cancel] \
+	set diag $win.diag
+	if {[winfo exists $diag]} {
+	    destroy $diag
+	}
+	Dialog $diag -cancel [lsearch $okcancel Cancel] \
 	    -title $msg
 	append msg "\nWidth $options(-paper-width)mm"
 	append msg "\nHeight $options(-paper-height)mm"
@@ -267,7 +300,7 @@ snit::widget scanadf {
     method {config get} name { set cf_$name }
     method {config lappend} {name args} {
 	lappend cf_$name {*}$args
-	$self config modified 0
+	$self config modified 1
     }
     method {config read} data {
 	foreach {cf value} $data {
@@ -335,14 +368,24 @@ snit::widget scanadf {
 	}
     }
 
+    method Quit {} {
+	if {[tk_messageBox -message "Really quit now?" -type okcancel]
+	    ne "ok"} return
+	if {[$self config modified]} {
+	    $self config save
+	}
+	exit
+    }
+
     method {setup menu} {} {
 	[winfo toplevel $win] configure -menu [menu [set m $win.menu]]
+	wm protocol [winfo toplevel $win] WM_DELETE_WINDOW [list $self Quit]
 
 	$m add cascade -label File -menu [menu $m.file]
 	$m.file add command -label "Save Config" \
 	    -command [list $self config save]
 	$m.file add separator
-	$m.file add command -label Quit -command exit
+	$m.file add command -label Quit -command [list $self Quit]
 
 	$m add cascade -label Option -menu [menu $m.option]
 	$m.option add radiobutton -label Gray -variable [myvar options(-mode)]
@@ -377,6 +420,9 @@ snit::widget scanadf {
 	$self history clear
 	set curBook [clock format [clock seconds] -format $options(-bookdirfmt)]
 	$self emit newBook=$curBook ok
+	if {$options(-reset-to) ne ""} {
+	    $self configure {*}$options(-reset-to)
+	}
 	set curBook
     }
     method Scan {mode} {
@@ -432,7 +478,9 @@ snit::widget scanadf {
 	error $line
     }
     method Finish {result} {
-	fileevent $myTask readable ""
+	if {[catch {fileevent $myTask readable ""} error]} {
+	    $self emit $error\n error
+	}
 	set myLastScanResult $result
 	$self history update
 	if {[catch {$self finish run} error]} {
@@ -457,11 +505,15 @@ snit::widget scanadf {
 	set myFinishHook ""
     }
 
+    option -resolution 100
     method {opt resolution} {} {
-	list --resolution 100 --y-resolution 100
+	list --resolution $options(-resolution) \
+	    --y-resolution $options(-resolution)
     }
     method {opt paper} {} {
-	list -x 130 -y 190 --page-width 130 --page-height 190
+	list -x $options(-paper-width) -y $options(-paper-height) \
+	    --page-width $options(-paper-width) \
+	    --page-height $options(-paper-height)
     }
 
     #----------------------------------------
@@ -571,6 +623,7 @@ snit::widget scanadf {
 
     method console {} {
 	package require tclreadline
+	tclreadline::readline eofchar [list $self Quit]
 	after idle tclreadline::Loop
     }
 
