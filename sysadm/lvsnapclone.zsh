@@ -6,12 +6,22 @@
 set -e
 
 function die { echo 1>&2 $*; exit 1 }
-((ARGC >= 2 && ARGC % 2 == 0)) ||
-die "Usage: ${0##/*} src-lv dest src2 dest2..."
 
-snap=()
-src=()
-typeset -A dest
+zparseopts -D n=dryrun x=xtrace || exit 1
+
+((ARGC >= 2 && ARGC % 2 == 0)) ||
+die "Usage: [-n] [-v] [-x] ${0##/*} src-lv dest src2 dest2..."
+
+function x {
+    print -- "$@"
+    if [[ -z $dryrun ]]; then
+	"$@"
+    fi
+}
+
+snapList=()
+typeset -A srcDict
+typeset -A destDict
 
 #
 # Side effect: size_gig, size_sector
@@ -24,6 +34,10 @@ function size_gig {
     size_gig=$[size_sector/2048/1024]
 }
 
+if [[ -n $xtrace ]]; then
+    set -x
+fi
+
 {
     # 1st. Prepare all snapshot and destination.
     for s d in $*; do
@@ -31,24 +45,31 @@ function size_gig {
 
 	# XXX: snapshot size option.
 	t=snap$#snap
-	lvcreate --snapshot --name $t -L2G $s
-	snap+=($s:h/$t)
+	snap=$s:h/$t
+	snapList+=($snap)
 
-	lvcreate --name $d:t --size ${size_gig}G $d:h
+	x lvcreate --name $d:t --size ${size_gig}G $d:h
 
-	dest[$snap[-1]]=$d
-
-	src+=($s)
+	destDict[$snap]=$d
+	srcDict[$snap]=$s
     done
 
-    # 2nd. Copy snapshot to destination.
-    for t in $snap; do
+    # 2nd. Create snapshots.
+    for snap in $snapList; do
+	x lvcreate --snapshot --name $snap:t -L2G $srcDict[$snap]
+    done
+	
+    # 3rd. Copy snapshot to destination.
+    for t in $snapList; do
 	# XXX: time/nice option.
-	time dd if=$t of=$dest[$t] conv=sync,noerror bs=1M
+	x dd if=$t of=$destDict[$t] conv=sync,noerror bs=1M
+	# XXX: this assumes ext2/3/4
+	x tune2fs -U $(uuidgen) $destDict[$t]
+	x lvremove -f $t
     done
 
 } always {
-    lvremove -f $snap
+    # x lvremove -f $snapList
 }
 
 # ./lvsnapclone.zsh /dev/vghk08/fc6root /dev/vghk08/fc6root-bak /dev/vghk08/fc6var /dev/vghk08/fc6var-bak
