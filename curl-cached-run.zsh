@@ -16,7 +16,11 @@ EOF
 #========================================
 opts=(--fail)
 
-zparseopts -D -K x=o_xtrace n=o_dryrun v=o_verbose || usage
+zparseopts -D -K h=o_help x=o_xtrace n=o_dryrun v=o_verbose || usage
+
+if (($#o_help)); then
+    usage
+fi
 
 if (($#o_xtrace)); then
     set -x
@@ -39,7 +43,7 @@ saveopt=(-O)
 # XXX: Fail if url ends with '/'...
 
 function run {
-    if (($#o_verbose)); then
+    if (($#o_dryrun || $#o_verbose)); then
 	print -r -- $*
     fi
     if (($#o_dryrun)); then
