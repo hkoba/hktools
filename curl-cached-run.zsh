@@ -56,13 +56,16 @@ zmodload zsh/stat
 if [[ -e $savename ]]; then
     # zstat returns stat into hash variable $old_stat[].
     zstat -H old_stat $savename
+
+    # -z/--time-cond <file-or-expr>   -- For HTTP If-Modified-Since.
+    saveopt+=(-z $savename)
 fi
 
-run curl $opts $saveopt -z $savename $url || die "Can't fetch $url"
+run curl $opts $saveopt $url || die "Can't fetch $url"
 
-if [[ -e $savename ]]; then
-    zstat -H new_stat $savename
-    if ((!$+old_stat)) || (($old_stat[mtime] != $new_stat[mtime])); then
-	run $then_cmd
-    fi
+[[ -e $savename ]] || die "Can't find savefile: $savename"
+
+zstat -H new_stat $savename
+if ((!$+old_stat)) || (($old_stat[mtime] != $new_stat[mtime])); then
+    run $then_cmd
 fi
