@@ -8,6 +8,8 @@ function die { print 1>&2 $*; exit 1 }
 function usage {
     cat 1>&2 <<EOF; exit 1
 Usage: $progname URL command args...
+
+run 'command args...' when URL is newer file is downloaded.
 EOF
 }
 
