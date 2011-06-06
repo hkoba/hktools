@@ -7,7 +7,7 @@ set -e
 
 function die { echo 1>&2 $*; exit 1 }
 
-zparseopts -D n=dryrun x=xtrace || exit 1
+zparseopts -D n=dryrun x=xtrace c:=retry_count || exit 1
 
 ((ARGC >= 2 && ARGC % 2 == 0)) ||
 die "Usage: [-n] [-v] [-x] ${0##/*} src-lv dest src2 dest2..."
@@ -65,7 +65,11 @@ fi
 	x dd if=$t of=$destDict[$t] conv=sync,noerror bs=1M
 	# XXX: this assumes ext2/3/4
 	x tune2fs -U $(uuidgen) $destDict[$t]
-	x lvremove -f $t
+	if ! x lvremove -f $t && (($#retry_count)); then
+	    for ((i=1; i <= $retry_count[-1]; i++)); do
+		lvremove -f $t && break
+	    done
+	fi
     done
 
 } always {

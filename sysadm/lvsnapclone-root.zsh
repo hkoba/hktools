@@ -5,7 +5,9 @@ rehash
 
 function die { echo 1>&2 $*; exit 1 }
 
-zparseopts -D n=dryrun v=verbose x=xtrace -title:=title || exit 1
+retry=(-c 3)
+
+zparseopts -D -K n=dryrun v=verbose x=xtrace -title:=title c:=retry || exit 1
 
 if ! ((ARGC)); then
     die Usage: $0:t 'rootdev=newdev' '?more_devs=more_new_devs...?'
@@ -19,16 +21,6 @@ orig_devs=()
 new_devs=()
 clone_list=()
 sed_args=()
-
-function initimg_mkinitrd {
-    mkinitrd -f --fstab=$mnt_tmp/etc/fstab $initramfs $(uname -r)
-}
-
-if (($+commands[dracut])); then
-	initimg=initimg_dracut
-else
-	initimg=true; # nop
-fi
 
 function list_devs {
     local i dev orig new
@@ -66,15 +58,31 @@ fi
 mnt_tmp=/var/tmp/$0:t:r.$$
 
 # initrd
+
 grubby --info=/boot/vmlinuz-$(uname -r) | source /dev/fd/0
-initramfs=$initrd:r-new.img
+
+if (($+commands[dracut])); then
+    mkinitrd=()
+    initramfs=$initrd
+else
+    initramfs=$initrd:r-new.img
+    mkinitrd=(-f --fstab=$mnt_tmp/etc/fstab $initramfs $(uname -r))
+fi
 
 print -r lvsnapclone.zsh $clone_list
 print -r orig_devs $orig_devs
 print -r new_devs $new_devs
 print -r sed_args $sed_args
-print -r initramfs $initramfs
 print -r mnt_tmp $mnt_tmp
+
+grubby=(
+    --title=${title[2][2,-1]:-New clone $new_devs[1]} 
+    --make-default --copy-default 
+    --initrd=$initramfs --add-kernel=/boot/$kernel
+    --args="root=$new_devs[1]"
+)
+
+print -r grubby ${(q)grubby}
 
 if [[ -n $dryrun ]]; then
     exit
@@ -88,20 +96,18 @@ mkdir $mnt_tmp
 
 {
 
-    lvsnapclone.zsh $clone_list|| read -q "yn?lvsnapclone might failed. proceed? [y/n] "
+    lvsnapclone.zsh $retry $clone_list ||
+    read -q "yn?lvsnapclone might failed. proceed? [y/n] "
 
     mount $new_devs[1] $mnt_tmp || read -q "yn?mount failed. proceed? [y/n] "
 
     sed -i $sed_args $mnt_tmp/etc/fstab
 
-    $initimg
+    if (($#mkinitrd)); then mkinitrd $mkinitrd; fi
 
     umount $mnt_tmp
 
-    grubby --title=${title[2][2,-1]:-New clone $new_devs[1]} \
-	--make-default --copy-default \
-	--initrd=$initramfs --add-kernel=/boot/$kernel \
-	--args="root=$new_devs[1]"
+    grubby $grubby
 
 } always {
     rmdir $mnt_tmp
