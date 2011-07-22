@@ -4,6 +4,7 @@ setopt extendedglob
 yum=/var/cache/yum
 
 function die { echo 1>&2 $*; exit 1 }
+
 function release_number {
     local release=$1 outVarName=$2
     zmodload zsh/regex
@@ -26,7 +27,23 @@ else
 fi
 repos=($repodir/^(firefox*|*debuginfo)/$~dbfile)
 
-zparseopts -D s=opt_s
+function usage {
+    cat 1>&2 <<EOF
+Usage: ${0:t} [-A] [-s] [-o colName,..] pkgPattern...
+
+Search package directly from yum sqlite db.
+Options:
+  -A              AND search for pkgPatterns. (Default is OR)
+  -s              search from summary.
+  -o colName      output column selection. eg. '-o name,version'
+EOF
+    exit
+}
+zparseopts -D h=o_help s=opt_s A=opt_AND -AND=opt_AND o:=opt_output_fields
+
+if (($#o_help)); then
+    usage
+fi
 
 column=name
 if [[ -n $opt_s ]]; then
@@ -35,22 +52,23 @@ fi
 
 WHERE=''
 if ((ARGC)); then
-    if ((ARGC == 1)) && [[ $1 != *=* ]]; then
-	WHERE="where $column glob "\'$1\'
-    else
-	where=()
-	integer i
-	local name value
-	for arg in $argv; do
+    where=()
+    integer i
+    local name value
+    for arg in $argv; do
+	if [[ $arg == *=* ]]; then
 	    i=$arg[(ri)=]
-	    if (($#arg < $i)); then
-		die "Invalid search spec: $arg";
-	    fi
 	    name=$arg[1,$i-1]
 	    value=$arg[$i+1,-1]
 	    where+=("$name glob ${(qq)value}")
-	done
+	else
+	    where+=("$column glob '$arg'")
+	fi
+    done
+    if (($#opt_AND)); then
 	WHERE="WHERE ${(j/ AND /)where}"
+    else
+	WHERE="WHERE ${(j/ OR /)where}"
     fi
 fi
 
@@ -59,9 +77,14 @@ nltab=$'\n\t'
 for db in $repos; do
     # repo=${${db#/var/cache/yum/}%/$dbfile}
     repo=${${db#/var/cache/yum/}:h}
-    sql='select name, version, release, '${(qqq)repo}
-    sql+=', '${(qqq)nltab}' || summary from packages '$WHERE' order by name'
-    [[ -n $DEBUG ]] && echo sql=$sql
+    if (($#opt_output_fields)); then
+	sql="select ${(j/,/)opt_output_fields[2,-1]}"
+	sql+=" from packages $WHERE order by name"
+    else
+	sql='select name, version, release, '${(qqq)repo}
+	sql+=', '${(qqq)nltab}' || summary from packages '$WHERE' order by name'
+    fi
+    [[ -n $DEBUG ]] && print -r sql=$sql
     sqlite3 -separator $'\t' $db $sql
 done
 
