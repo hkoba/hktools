@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Borrowed from:
+# http://labs.timedia.co.jp/2011/03/git-removing-a-submodule.html
+
+name=$1
+
+if [ -z "$name" ]; then
+   echo Usage: $0 modname 1>&2
+   exit 1
+fi
+
+git rm --cached `git config --file .gitmodules --get submodule.$name.path` &&
+git config --file .gitmodules --remove-section submodule.$name
+
