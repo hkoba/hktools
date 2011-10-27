@@ -1,0 +1,38 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings FATAL => qw(all);
+use File::Basename;
+
+@ARGV or usage();
+
+my $chars = quotemeta(join "", @ARGV);
+
+
+open my $pipe, "-|", qw(git status -s) or die $!;
+
+while (<$pipe>) {
+  chomp;
+  s{^[\ $chars]{2} }{} or next;
+  print "$_\n";
+}
+
+
+sub usage {
+  die <<END;
+Usage: @{[basename($0)]}  GIT_STATUS_CHAR_LIST
+
+Will lists filename part of git status -s, filtered by GIT_STATUS_CHAR_LIST,
+where GIT_STATUS_CHAR_LIST is a list of folllowing chars:
+
+  M   - modified
+  A   - added
+  D   - deleted
+  R   - removed
+  C   - copied
+  ?   - unknown(untracked)
+
+Note: This command do not differentiate first and second status char.
+See the source.
+
+END
+}
