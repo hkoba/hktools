@@ -19,6 +19,8 @@ keys=(
 
 typeset -A cacheinfo
 
+grep '^model name' /proc/cpuinfo|head -1
+
 for n in $sysfs/$cpu/cache/index<0->; do
     cacheinfo=()
     for v in $keys; do
