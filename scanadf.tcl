@@ -23,6 +23,8 @@ snit::widget scanadf {
     option -bookdirfmt %Y%m%d-%H:%M
     option -filefmt p%03d.pnm
 
+    option -amazon http://www.amazon.co.jp/gp/product/
+
     option -preset body
     component myPresetSelector
     option -preset-dict [dict create \
@@ -35,6 +37,9 @@ snit::widget scanadf {
 
     # newbook で reset した後に、どんな設定に戻すか
     option -reset-to
+
+    # その他
+    option -isbn ""
 
     # このスキャンが終了した後に、preset 又は papersize を自動変更する
     option -next
@@ -71,6 +76,17 @@ snit::widget scanadf {
 	$self setup menu
 
 	set i 0
+	#----------------------------------------
+	lappend frames [set f [labelframe $win.f[incr i] -text 付加情報]]
+	set r 0	
+	gridrow r [label $f.w[incr i] -text ISBN(10or13)] \
+	    {-sticky ne} \
+	    [ttk::entry [set w $f.w[incr i]] \
+		 -validatecommand [list $self isbn validate] \
+		 -textvariable [myvar options(-isbn)]] \
+	    {-sticky nw}
+	bind $w <Return> [list $self isbn open]
+
 	#----------------------------------------
 	lappend frames [set bf [frame $win.bf[incr i]]]; # 、画質、用紙サイズ
 
@@ -417,6 +433,7 @@ snit::widget scanadf {
     variable curBook ""
     method newbook {} {
 	set options(-i) 1
+	set options(-isbn) ""
 	$self history clear
 	set curBook [clock format [clock seconds] -format $options(-bookdirfmt)]
 	$self emit newBook=$curBook ok
@@ -433,6 +450,11 @@ snit::widget scanadf {
 	}
 	if {![file exists $curBook]} {
 	    file mkdir $curBook
+	}
+	set isbn $curBook/isbn.txt
+	if {$options(-isbn) ne ""
+	    && ![file exists $isbn]} {
+	    write_file $isbn "$options(-isbn)\n"
 	}
 	set cmd [list scanadf \
 		     --device $options(-device) \
@@ -605,6 +627,59 @@ snit::widget scanadf {
     method preview {} {
 	exec -ignorestderr gthumb [file join $options(-chdir) $curBook] &
     }
+    method {isbn open} {{isbn ""}} {
+	if {$isbn eq ""} {
+	    set isbn [$self cget -isbn]
+	}
+	set asin [$self isbn as_asin $isbn]
+	# set url http://amazon.jp/dp/$isbn/
+	set url $options(-amazon)/$asin/
+	puts "Opening $url..."
+	exec xdg-open $url &
+    }
+    method {isbn validate} isbn {
+	expr {[$self isbn as_asin $isbn] ne ""}
+    }
+    method {isbn as_asin} isbn {
+	set isbn [string map {- ""} $isbn]
+	if {[string length $isbn] == 10} {
+	    return [$self isbn checked10 $isbn]
+	} elseif {[string length $isbn] == 13} {
+	    return [$self isbn cvt13to10 $isbn]
+	} else {
+	    error "Invalid ISBN $isbn"
+	}
+    }
+
+    method {isbn checked10} isbn {
+	set calc [$self isbn ckdigit10 [split $isbn ""]]
+	if {[set written [string index $isbn 9]] ne $calc} {
+	    error "ISBN checkdigit mismatch! written $got calculated $calc"
+	}
+	set isbn
+    }
+
+    method {isbn cvt13to10} isbn {
+	set main [string range $isbn 3 11]
+	return $main[$self isbn ckdigit10 [split $main ""]]
+    }
+
+    method {isbn ckdigit10} isbn10 {
+	set mul 10;
+	set sum 0
+	for {set i 0} {$i < 9} {incr i; incr mul -1} {
+	    puts "$i.[lindex $isbn10 $i]"
+	    incr sum [expr {[lindex $isbn10 $i] * $mul}]
+	}
+	set mod [expr {$sum % 11}]
+	set val [expr {11 - $mod}]
+	switch $val {
+	    10 { return X }
+	    11 { return 0 }
+	    default { return $val }
+	}
+    }
+
     #========================================
     component myMessage
     method emit {msg {tag ""} args} {
@@ -685,7 +760,9 @@ snit::widget scanadf {
 }
 
 if {[info level] == 0 && $::argv0 eq [info script]} {
-    pack [scanadf .win {*}$::argv] -fill both -expand yes
+    if {![winfo exists .win]} {
+	pack [scanadf .win {*}$::argv] -fill both -expand yes
+    }
 }
 
 # Local Variables: **
