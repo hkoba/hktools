@@ -1,0 +1,64 @@
+#!/bin/zsh
+
+setopt extendedglob
+yum=/var/cache/yum
+
+function die { echo 1>&2 $*; exit 1 }
+function usage {
+    cat 1>&2 <<EOF; exit 1
+Usage: ${0:t} MODNAME...
+EOF
+}
+
+zparseopts -D r:=o_repo || usage
+
+((ARGC)) || usage
+
+function release_number {
+    local release=$1 outVarName=$2
+    zmodload zsh/regex
+    [[ $release -regex-match '([[:digit:]]+)' ]] || return 1
+    integer -g "$outVarName=$MATCH"
+}
+
+release_number "$(< /etc/redhat-release)" relno ||
+die "Can't find redht release number"
+
+if [[ -d $yum/$CPUTYPE/$relno ]]; then
+    repodir=$yum/$CPUTYPE/$relno
+    dbfile=\*primary.'(xml.gz.)#'sqlite
+elif [[ -d $yum/fedora ]]; then
+    repodir=$yum
+    dbfile=\*primary.sqlite
+else
+    repodir=$yum
+    dbfile=primary.xml.gz.sqlite
+fi
+
+if (($#o_repo)); then
+    REPO=$o_repo[-1]
+else
+    REPO=fedora
+fi
+
+dbs=($repodir/$REPO/$~dbfile) || exit 1
+
+nltab=$'\n\t'
+
+# XXX: This is slow.
+for m in $*; do
+    sql="select count(*) from provides where provides.name = 'perl($m)'"
+    found=$(sqlite3 $dbs[1] $sql)
+    ((found)) || die "Not found: $m"
+done
+
+inlist=()
+for m in $*; do
+    inlist+=("'perl($m)'")
+done
+
+sql="select distinct packages.name
+from provides join packages using(pkgKey)
+where provides.name in (${(j/,/)inlist})"
+
+sqlite3 -separator $'\t' $dbs[1] $sql

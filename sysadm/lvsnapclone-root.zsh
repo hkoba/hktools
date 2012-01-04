@@ -5,9 +5,10 @@ rehash
 
 function die { echo 1>&2 $*; exit 1 }
 
-retry=(-c 3)
-
-zparseopts -D -K n=dryrun v=verbose x=xtrace -title:=title c:=retry || exit 1
+zparseopts -D n=dryrun v=verbose x=xtrace -title:=title c:=retry || exit 1
+if ! (($#retry)); then
+	retry=(-c 3)
+fi
 
 if ! ((ARGC)); then
     die Usage: $0:t 'rootdev=newdev' '?more_devs=more_new_devs...?'
@@ -96,7 +97,7 @@ mkdir $mnt_tmp
 
 {
 
-    lvsnapclone.zsh $retry $clone_list ||
+    $0:h/lvsnapclone.zsh $retry $clone_list ||
     read -q "yn?lvsnapclone might failed. proceed? [y/n] "
 
     mount $new_devs[1] $mnt_tmp || read -q "yn?mount failed. proceed? [y/n] "
@@ -109,6 +110,7 @@ mkdir $mnt_tmp
 
     grubby $grubby
 
+    echo done.
 } always {
     rmdir $mnt_tmp
 }
