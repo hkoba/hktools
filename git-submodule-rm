@@ -1,15 +1,53 @@
-#!/bin/sh
+#!/bin/zsh
 
 # Borrowed from:
 # http://labs.timedia.co.jp/2011/03/git-removing-a-submodule.html
+# http://stackoverflow.com/questions/1260748/how-do-i-remove-a-git-submodule
 
-name=$1
+function die { echo $* 1>&2; exit 1 }
+function usage {
+    die Usage: $0:t modname modname...
+}
 
-if [ -z "$name" ]; then
-   echo Usage: $0 modname 1>&2
-   exit 1
-fi
+zparseopts -D x=o_xtrace h=o_help n=o_dryrun q=o_quiet || usage
 
-git rm --cached `git config --file .gitmodules --get submodule.$name.path` &&
-git config --file .gitmodules --remove-section submodule.$name
+(($#o_help)) && usage
 
+((ARGC)) || usage
+
+(($#o_xtrace)) && set -x
+
+function x {
+    if (($#o_dryrun || !$#o_quiet)); then
+	print -- "$@"
+    fi
+    if (($#o_dryrun)); then
+	return 0
+    fi
+    "$@"
+}
+
+function git-submodule-do-rm {
+    local fn noslash
+    for fn in "$@"; do
+	noslash=${fn%%/#}
+	if git-rm-cached-submodule $noslash; then
+	    git-config-remove-submodule $noslash .git/config .gitmodules ||
+	    break
+	fi
+    done
+}
+
+function git-config-remove-submodule {
+    local mod=$1; shift
+    local fn; for fn in "$@"; do
+	x git config -f $fn --remove-section submodule.$mod
+    done
+}
+
+function git-rm-cached-submodule {
+    local mod=$1;
+    x git rm --cached $(git config --file .gitmodules --get submodule.$mod.path)
+}
+
+git-submodule-do-rm $argv
