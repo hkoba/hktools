@@ -40,14 +40,20 @@ function git-submodule-do-rm {
 
 function git-config-remove-submodule {
     local mod=$1; shift
-    local fn; for fn in "$@"; do
-	x git config -f $fn --remove-section submodule.$mod
+    local fn url; for fn in "$@"; do
+	if url=$(git config --file $fn --get submodule.$mod.url) &&
+	    [[ -n $url ]]; then
+	    x git config -f $fn --remove-section submodule.$mod
+	fi
     done
 }
 
 function git-rm-cached-submodule {
-    local mod=$1;
-    x git rm --cached $(git config --file .gitmodules --get submodule.$mod.path)
+    local mod=$1 fn;
+    if fn=$(git config --file .gitmodules --get submodule.$mod.path) &&
+	[[ -e $fn ]]; then
+	x git rm --cached $fn
+    fi
 }
 
 git-submodule-do-rm $argv
