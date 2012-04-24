@@ -51,7 +51,7 @@ function git-config-remove-submodule {
 function git-rm-cached-submodule {
     local mod=$1 fn;
     if fn=$(git config --file .gitmodules --get submodule.$mod.path) &&
-	[[ -e $fn ]]; then
+	[[ -n $fn ]]; then
 	x git rm --cached $fn
     fi
 }
