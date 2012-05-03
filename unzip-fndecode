@@ -1,0 +1,137 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings FATAL => qw(all);
+
+use Archive::Zip qw(:ERROR_CODES);
+use Getopt::Long;
+use File::Path qw(make_path);
+
+use Encode qw(decode);
+use encoding qw(:locale);
+
+#========================================
+use fields qw(zip from_code dest_dir);
+sub MY () {__PACKAGE__}
+
+#========================================
+my %lang_default_code = qw(ja shiftjis);
+
+#========================================
+sub usage {
+  die <<EOF;
+Usage: $0 [opts..] zipfile [...list...] [-d DESTDIR]
+
+ -l                  list files (like unzip -l)
+ -d DESTDIR          extract to DESTDIR
+ -f CODE             specify input filename encoding
+  --from-code=CODE   (same)
+EOF
+}
+
+#
+# main
+#
+{
+  my MY $opts = fields::new(MY);
+
+  GetOptions("h" => \ my $o_help
+	     , "l" => \ my $o_list
+	     , "d=s" => \ $opts->{dest_dir}
+	     , "f|from-code" => \ $opts->{from_code})
+    or usage;
+
+  usage if $o_help;
+
+  usage unless @ARGV;
+
+  my $zipfile = shift;
+
+  # -d DESTDIR can be specified last.
+  if (!defined $opts->{dest_dir} and @ARGV >= 2 and $ARGV[-2] eq "-d") {
+    (undef, $opts->{dest_dir}) = splice @ARGV, -2;
+  }
+
+  $opts->{from_code} //= guess_code_default($ENV{LANG});
+  unless ($opts->{from_code}) {
+    die "Can't guess from-code. Please specify --from-code=CODE\n";
+  }
+
+
+  $opts->{dest_dir} //= '.';
+
+  if ($o_list) {
+    $opts->cmd_list($zipfile, @ARGV);
+  } else {
+    $opts->cmd_extract($zipfile, @ARGV);
+  }
+}
+
+#========================================
+
+sub cmd_list {
+  (my MY $opts, my ($zipfile, @wantlist)) = @_;
+  my %wantlist; $wantlist{$_} = 1 for @wantlist;
+  $opts->zip_open($zipfile);
+
+  foreach my $m ($opts->{zip}->members) {
+    my $orig = $m->fileName;
+    next if %wantlist and not $wantlist{$orig};
+    print $opts->decode_fn($orig), "\n";
+  }
+}
+
+sub cmd_extract {
+  (my MY $opts, my ($zipfile, @wantlist)) = @_;
+  my %wantlist; $wantlist{$_} = 1 for @wantlist;
+  $opts->zip_open($zipfile);
+
+  make_path($opts->{dest_dir}) unless -d $opts->{dest_dir};
+
+  foreach my $m ($opts->{zip}->members) {
+    my $orig = $m->fileName;
+    next if %wantlist and not $wantlist{$orig};
+    my $new = $opts->decode_fn($orig);
+    my $rc = $opts->{zip}->extractMember($m, "$opts->{dest_dir}/$new");
+    if ($rc == AZ_OK) {
+      print "extracted: $new\n";
+    } else {
+      warn "Extraction error for $new! AZ code: $rc\n";
+    }
+  }
+}
+
+#----------------------------------------
+
+sub zip_open {
+  (my MY $opts, my $zipfile) = @_;
+  $opts->{zip} = Archive::Zip->new($zipfile)
+    or die "Can't open zipfile: $zipfile";
+}
+
+sub decode_fn {
+  (my MY $opts, my $binary) = @_;
+  decode($opts->{from_code}, $binary);
+}
+
+
+#========================================
+
+sub guess_code_default {
+  my ($locale) = @_;
+  return undef unless defined $locale;
+  my ($lang) = split_locale($locale)
+    or return undef;
+
+  $lang_default_code{$lang};
+}
+
+sub split_locale {
+  my ($locale) = @_;
+  $locale =~ m{^
+	       ([a-z]{2})        # language
+	       (?:_([A-Z]{2}))?  # territory
+	       (?:\.([\w\-]+))?  # codeset
+	       (?:@(.+))?        # modifier
+	       $
+	    }x;
+}
