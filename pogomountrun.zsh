@@ -86,11 +86,15 @@ function pogo_wait_mounted {
 }
 
 #========================================
-zparseopts -D v=o_verbose h=o_help
+zparseopts -D v=o_verbose h=o_help m:=o_mnt
 
 (($#o_help)) && usage
 
 (($+commands[pogoplugfs])) || die "Can't find pogoplugfs command!"
+
+if (($#o_mnt)); then
+    mnt=$o_mnt[-1]
+fi
 
 [[ -d $mnt ]] || die "mountpoint $mnt does not exist!"
 
