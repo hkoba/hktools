@@ -9,6 +9,10 @@ use File::Path qw(make_path);
 use Encode qw(decode);
 use encoding qw(:locale);
 
+if (my $enc = encoding::_get_locale_encoding()) {
+  binmode STDERR, ":raw :encoding($enc)";
+}
+
 #========================================
 use fields qw(zip from_code dest_dir);
 sub MY () {__PACKAGE__}
@@ -37,7 +41,7 @@ EOF
   GetOptions("h" => \ my $o_help
 	     , "l" => \ my $o_list
 	     , "d=s" => \ $opts->{dest_dir}
-	     , "f|from-code" => \ $opts->{from_code})
+	     , "f|from-code=s" => \ $opts->{from_code})
     or usage;
 
   usage if $o_help;
@@ -90,12 +94,12 @@ sub cmd_extract {
   foreach my $m ($opts->{zip}->members) {
     my $orig = $m->fileName;
     next if %wantlist and not $wantlist{$orig};
-    my $new = $opts->decode_fn($orig);
-    my $rc = $opts->{zip}->extractMember($m, "$opts->{dest_dir}/$new");
+    my $new = "$opts->{dest_dir}/" . $opts->decode_fn($orig);
+    my $rc = $opts->{zip}->extractMember($m, $new);
     if ($rc == AZ_OK) {
       print "extracted: $new\n";
     } else {
-      warn "Extraction error for $new! AZ code: $rc\n";
+      warn "Extraction error for $new! (Error code=$rc)\n";
     }
   }
 }
