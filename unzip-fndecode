@@ -22,13 +22,14 @@ my %lang_default_code = qw(ja shiftjis);
 
 #========================================
 sub usage {
+  my ($prog) = $0 =~ m{([^/]+)$};
   die <<EOF;
-Usage: $0 [opts..] zipfile [...list...] [-d DESTDIR]
+Usage: $prog [opts..] zipfile [...list...] [-d DESTDIR]
 
- -l                  list files (like unzip -l)
+ -l                  list files in zip (like unzip -l)
  -d DESTDIR          extract to DESTDIR
  -f CODE             specify input filename encoding
-  --from-code=CODE   (same)
+  --from-code=CODE   (same above)
 EOF
 }
 
