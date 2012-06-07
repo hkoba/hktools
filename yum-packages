@@ -25,7 +25,7 @@ else
     repodir=$yum
     dbfile=primary.xml.gz.sqlite
 fi
-repos=($repodir/^(firefox*|*debuginfo)/$~dbfile)
+repos=($repodir/^*debuginfo/$~dbfile)
 
 function usage {
     cat 1>&2 <<EOF
@@ -36,13 +36,26 @@ Options:
   -A              AND search for pkgPatterns. (Default is OR)
   -s              search from summary.
   -o colName      output column selection. eg. '-o name,version'
+  -d              list databases and exit.
 EOF
     exit
 }
-zparseopts -D h=o_help s=opt_s A=opt_AND -AND=opt_AND o:=opt_output_fields
+zparseopts -D h=o_help s=opt_s A=opt_AND d=o_listdb \
+    -AND=opt_AND \
+    o:=opt_output_fields
 
 if (($#o_help)); then
     usage
+fi
+
+if (($#o_listdb)); then
+    (($#repos)) || exit 1
+    # output as assocarray(typeset -A) suitable format.
+    for db in $repos; do
+	# reponame dbfile
+	print ${${db#$repodir/}/\/*/} $db
+    done
+    exit
 fi
 
 column=name
