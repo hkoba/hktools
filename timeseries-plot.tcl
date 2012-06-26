@@ -1,8 +1,9 @@
 #!/usr/bin/env wish8.5
 # -*- mode: tcl; coding: utf-8 -*-
 
-# Usage: timeseries.tcl -file data.tsv
+# Usage: timeseries-plot.tcl -file data.tsv
 #
+# First row must be a header.
 # First column must be a date/time. default format is %Y-%m-%d %H:%M:%S
 # Other columns can be any numeric data.
 
