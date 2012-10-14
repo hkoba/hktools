@@ -1,8 +1,10 @@
 #!/bin/zsh
 
 progfile=$0
+mnt=~/Pogoplug
+
 function usage {
-    cat <<EOF; exit
+    cat <<EOF
 Usage: ${progfile:t} [-v] COMMAND args...
 
  This command starts pogoplugfs --mountpoint $mnt,
@@ -11,9 +13,8 @@ Usage: ${progfile:t} [-v] COMMAND args...
 
  When your command terminated, pogoplugfs is automatically terminated too.
 EOF
+    exit
 }
-
-mnt=~/Pogoplug
 
 blk='\[[.[:alnum:]]##\]'
 header="$blk$blk$blk$blk "
@@ -127,7 +128,9 @@ else
     $SHELL
 fi
 
-fusermount -u $mnt
+until fusermount -u $mnt; do
+  print "sleeping to retry umount..."; sleep 1;
+done
 
 pogo_expect "Fuse loop exited*"
 
