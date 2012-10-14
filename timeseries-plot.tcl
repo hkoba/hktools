@@ -117,7 +117,7 @@ snit::widget timeseries {
 	set sx [scrollbar $frm.gra_x -command [list $myGraph axis view x]\
 		    -orient horizontal -relief flat]
 	$myGraph axis configure x -scrollcommand [list $sx set] \
-	    -stepsize [expr {3600*24}] -subdivisions 60\
+	    -stepsize [expr {3600*24}] \
 	    -scrollincrement 1 \
 	    -command [list $self tick format x]
 	# XXX: zoom に合わせて -stepsize/-subdivisions/ format... を調整したい
@@ -176,12 +176,13 @@ snit::widget timeseries {
     #========================================
 
     option -colorlist [list #7788ff #44cc00 #ffaa33 #ff4466 \
-			   #8822ff #00ddcc #00ddcc #55ffbb]
+			   \#8822ff #00ddcc #00ddcc #55ffbb ]
 
     option -headerlist
     option -separator \t
     variable myHeaderList
     variable myVectList
+    variable myVectDict -array {}
     method {set header} hlist {
 	set myHeaderList $hlist
 	foreach cmd [info commands $self.vec*] {
@@ -191,7 +192,8 @@ snit::widget timeseries {
 
 	set c 0
 	foreach title $myHeaderList {
-	    lappend myVectList [blt::vector create $self.vec[incr c]]
+	    lappend myVectList [set myVectDict($title) \
+				    [blt::vector create $self.vec[incr c]]]
 	    if {[llength $myVectList] >= 2} {
 		set fill {}
 		if {[llength $myVectList] == 2} {
@@ -213,8 +215,26 @@ snit::widget timeseries {
 	list [$tvec index 0] [$tvec index end]
     }
 
-    method {time vec} {} {
-	lindex $myVectList 0
+    method column {name args} {
+	set vn myVectDict($name)
+	if {![info exists $vn]} {
+	    error "No such column! $name"
+	}
+	set vec [set $vn]
+	if {[llength $args]} {
+	    $vec {*}$args
+	} else {
+	    set vec
+	}
+    }
+
+    method {time vector} args {
+	set tvec [lindex $myVectList 0]
+	if {[llength $args]} {
+	    $tvec {*}$args
+	} else {
+	    set tvec
+	}
     }
 
     method {time goto} goto {
@@ -304,7 +324,9 @@ snit::widget timeseries {
 
 	    incr i
 	}
-	puts "DONE(elapsed=[expr {[clock seconds] - $now}]secs)"
+	set elapsed [expr {[clock seconds] - $now}]
+	set points [$self time vector length]
+	puts "DONE(elapsed=${elapsed}s, total datapoints=$points)"
     }
 
     #========================================
