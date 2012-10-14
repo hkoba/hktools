@@ -83,6 +83,8 @@ grubby=(
     --args="root=$new_devs[1]"
 )
 
+# XXX: rd.lvm.lv / rd_LVM_LV should be replaced too!
+
 print -r grubby ${(q)grubby}
 
 if [[ -n $dryrun ]]; then
