@@ -1,0 +1,77 @@
+#!/usr/bin/tclsh
+# -*- Tcl -*-
+# $Id: tdomselect,v 1.2 2010/08/10 10:13:28 hkoba Exp $
+package require tdom
+package require cmdline
+
+array set opts [cmdline::getoptions argv {
+    {encoding.arg utf-8 "input file encoding"}
+    {begin.arg {} "eval before loop"}
+    {end.arg {} "eval after loop"}
+    {n "No puts"}
+}]
+
+switch -exact -- [llength $argv] {
+    2 {
+	foreach {fn xpath} $argv break
+	set varName node
+	set cmdBody {$node toXPath}
+    }
+    3 {
+	foreach {fn xpath method} $argv break
+	set varName node
+	set cmdBody "\$node $method"
+    }
+    4 {
+	foreach {fn xpath varName cmdBody} $argv break
+    }
+    1 -
+    default {
+	puts stderr "\
+Usage: [file tail $argv0] xmlfile xpath ?nodeMethod?\n\
+[file tail $argv0] xmlfile xpath ?varName command?\n\
+"
+        exit 1
+    }
+}
+
+if {$opts(n)} {
+    set cmd $cmdBody
+    # proc cmd $varName $cmdBody
+} else {
+    set cmd "puts \[$cmdBody\]"
+    # proc cmd $varName "puts \[$cmdBody\]"
+}
+
+proc read_enc {fn enc} {
+    set fh [open $fn]
+    fconfigure $fh -encoding $enc
+    set data [read $fh]
+    close $fh
+    set data
+}
+
+eval $opts(begin)
+
+catch {
+    package require Tclx
+    signal trap SIGPIPE exit
+}
+
+set parse_opts {}
+if {[regexp {\.html?$} $fn]} {
+    lappend parse_opts -html
+}
+
+dom parse {*}$parse_opts [read_enc $fn $opts(encoding)] doc
+$doc documentElement root
+set found [$root selectNodes $xpath]
+
+foreach $varName $found {
+    # cmd [set $varName]
+    eval $cmd
+}
+
+eval $opts(end)
+
+exit [expr {[llength $found] == 0}]

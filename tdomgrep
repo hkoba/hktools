@@ -1,0 +1,55 @@
+#!/usr/bin/tclsh
+# -*- Tcl -*-
+# $Id: tdomgrep,v 1.1 2004/07/29 05:56:37 hkoba Exp $
+package require tdom
+package require cmdline
+
+array set opts [cmdline::getoptions argv {
+    {encoding.arg utf-8 "input file encoding"}
+    {l "list"}
+    {n "no filename"}
+    {method.arg toXPath "output method"}
+}]
+
+if {[llength $::argv] < 1} {
+    error "Usage: $::argv0 pattern ?xmlfiles...?"
+}
+set xpath [lindex $::argv 0]
+set argv [lrange $::argv 1 end]
+
+proc read_enc {fn enc} {
+    set fh [open $fn]
+    fconfigure $fh -encoding $enc
+    set data [read $fh]
+    close $fh
+    set data
+}
+
+catch {
+    package require Tclx
+    signal trap SIGPIPE exit
+}
+
+set nfounds 0
+foreach fn $argv {
+    dom parse [read_enc $fn $opts(encoding)] doc
+    $doc documentElement root
+    set found [$root selectNodes $xpath]
+    incr nfounds [llength $found]
+    if {$opts(l)} {
+	if {[llength $found]} {
+	    puts $fn
+	}
+    } else {
+	if {$opts(n)} {
+	    set prefix {}
+	} else {
+	    set prefix "$fn "
+	}
+	foreach node $found {
+	    puts $prefix[$node $opts(method)]
+	}
+    }
+}
+
+exit [expr {$nfounds == 0}]
