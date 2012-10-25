@@ -1,77 +1,92 @@
 #!/usr/bin/tclsh
 # -*- Tcl -*-
-# $Id: tdomselect,v 1.2 2010/08/10 10:13:28 hkoba Exp $
 package require tdom
 package require cmdline
 
-array set opts [cmdline::getoptions argv {
-    {encoding.arg utf-8 "input file encoding"}
-    {begin.arg {} "eval before loop"}
-    {end.arg {} "eval after loop"}
-    {n "No puts"}
-}]
+# Ex. To list up reused passwords:
+# tdomselect tmp/keepass.xml //entry password username url title|sort|uniq
 
-switch -exact -- [llength $argv] {
-    2 {
-	foreach {fn xpath} $argv break
-	set varName node
-	set cmdBody {$node toXPath}
-    }
-    3 {
-	foreach {fn xpath method} $argv break
-	set varName node
-	set cmdBody "\$node $method"
-    }
-    4 {
-	foreach {fn xpath varName cmdBody} $argv break
-    }
-    1 -
-    default {
-	puts stderr "\
-Usage: [file tail $argv0] xmlfile xpath ?nodeMethod?\n\
-[file tail $argv0] xmlfile xpath ?varName command?\n\
-"
-        exit 1
-    }
+proc usage {{rc 1}} {
+    set prog [file tail $::argv0] 
+    puts stderr "Usage: $prog -m asText xmlfile xpath ?sub-xpath...?"
+    exit $rc
 }
 
-if {$opts(n)} {
-    set cmd $cmdBody
-    # proc cmd $varName $cmdBody
-} else {
-    set cmd "puts \[$cmdBody\]"
-    # proc cmd $varName "puts \[$cmdBody\]"
-}
-
-proc read_enc {fn enc} {
+proc read_enc {fn args} {
     set fh [open $fn]
-    fconfigure $fh -encoding $enc
+    if {[llength $args]} {
+	fconfigure $fh {*}$args
+    }
     set data [read $fh]
     close $fh
     set data
 }
 
-eval $opts(begin)
-
+#========================================
 catch {
     package require Tclx
     signal trap SIGPIPE exit
 }
 
-set parse_opts {}
-if {[regexp {\.html?$} $fn]} {
-    lappend parse_opts -html
+array set opts [cmdline::getoptions argv {
+    {encoding.arg utf-8 "input file encoding"}
+    {debug no "debug"}
+    {begin.arg {} "eval before loop"}
+    {end.arg {} "eval after loop"}
+    {m.arg {asText} "method which is applied to extract values from selected nodes"}
+    {e.arg {} "expression applied to selected node"}
+    {n no "No puts"}
+}]
+
+proc tdom_select {fn xpath args} {
+    uplevel #0 $::opts(begin)
+
+    set parse_opts {}
+    if {[regexp {\.html?$} $fn]} {
+	lappend parse_opts -html
+    }
+
+    dom parse {*}$parse_opts [read_enc $fn -encoding $::opts(encoding)] doc
+    $doc documentElement root
+    set found [$root selectNodes $xpath]
+
+    if {$::opts(e) ne ""} {
+	set cmdBody $::opts(e)
+    } elseif {[llength $args]} {
+	set cmdBody [string map [list @M@ $::opts(m) @C@ $args ] {
+	    set ls {}
+	    foreach c [list @C@] {
+		if {![regexp {^\./} $c]} {
+		    set c "./$c"
+		}
+		foreach sub [$node selectNodes $c] {
+		    lappend ls [$sub @M@]
+		}
+	    }
+	    set ls
+	}]
+    } else {
+	set cmdBody [string map [list @M@ $::opts(m)] {$node @M@}]
+    }
+
+    if {$::opts(debug)} {
+	puts stderr cmdBody=$cmdBody
+    }
+
+    foreach node $found {
+	set res [apply [list node $cmdBody] $node]
+	if {!$::opts(n)} {
+	    puts [join $res \t]
+	}
+    }
+
+    uplevel #0 $::opts(end)
+
+    set found
 }
 
-dom parse {*}$parse_opts [read_enc $fn $opts(encoding)] doc
-$doc documentElement root
-set found [$root selectNodes $xpath]
-
-foreach $varName $found {
-    # cmd [set $varName]
-    eval $cmd
+if {[llength $argv] < 2} {
+    usage
 }
 
-eval $opts(end)
-
-exit [expr {[llength $found] == 0}]
+exit [expr {[llength [tdom_select {*}$argv]] == 0}]
