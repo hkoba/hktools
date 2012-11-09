@@ -1,0 +1,32 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings FATAL => qw/all/;
+
+{
+  opendir my $dh, "/proc" or die "Can't opendir /proc: $!";
+  while (my $pid = readdir($dh)) {
+    open my $fh, '<', "/proc/$pid/smaps" or next;
+    local $_;
+    my ($swaps) = (0);
+    while (<$fh>) {
+       chomp;
+       next unless /^Swap:\s+(\d+) kB/;
+       $swaps += $1;
+    }
+    if ($swaps) {
+      print join("\t", $pid, $swaps
+                 , readlink("/proc/$pid/exe")
+                 , read_file("/proc/$pid/cmdline")), "\n";
+    }
+  }
+}
+
+sub read_file {
+  my ($fn) = @_;
+  open my $fh, '<', $fn or die "Can't open $fn: $!";
+  local $/;
+  chomp(my $res = scalar <$fh>);
+  $res =~ s/\0$//;
+  $res =~ s/\0/ /g;
+  $res;
+}
