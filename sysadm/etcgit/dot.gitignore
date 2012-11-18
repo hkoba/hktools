@@ -1,0 +1,15 @@
+/mtab
+/lvm
+/blkid
+/adjtime
+/*-
+/*.cache
+/*.db
+*~
+*.lock
+*.bak
+*.OLD
+*.old
+*.O
+*rpmorig
+*rpmnew
