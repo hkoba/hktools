@@ -12,13 +12,14 @@ Usage: @{[basename $0]} [-v | -n | -f FMT] files...
 
   This will rename the specified files
   by replacing the "#numbering" portion by sprintf,
-  usually used to rename "foo#1.ogg" to "foo#01.ogg".
+  usually used to rename "1 - foo#1.ogg" to "01 - foo#01.ogg".
 
   -v       --verbose
   -q       --quiet
   -o       --overwrite
   -n       --dryrun
   -f FMT   --format=FMT
+  -m PAT   --match=PAT
 END
 }
 
@@ -28,16 +29,19 @@ END
 	     , "v|verbose", \ my $o_verbose
 	     , "q|quiet", \ my $o_quiet
 	     , "o|overwrite", \ my $o_overwrite
-	     , "f|format=s", \ my $o_fmt)
+	     , "f|format=s", \ my $o_fmt
+	     , "m|match=s", \ my $o_match
+	    )
     or usage;
 
   usage if $o_help or not @ARGV;
 
   $o_fmt ||= "%02d";
+  my $re = $o_match ? qr{$o_match} : qr{(?:^|(?<=\#))\d+};
 
   foreach my $fn (@ARGV) {
     local $_ = $fn;
-    s{(?<=\#)\d+}{sprintf $o_fmt, $&}eg;
+    s{$re}{sprintf $o_fmt, $&}eg;
     if ($_ eq $fn) {
       print "SKIP: $_\n" if $o_verbose;
       next;
