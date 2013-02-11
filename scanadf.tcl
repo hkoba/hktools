@@ -529,8 +529,7 @@ snit::widget scanadf {
 
     option -resolution 100
     method {opt resolution} {} {
-	list --resolution $options(-resolution) \
-	    --y-resolution $options(-resolution)
+	list --resolution $options(-resolution)
     }
     method {opt paper} {} {
 	list -x $options(-paper-width) -y $options(-paper-height) \
