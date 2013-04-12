@@ -8,7 +8,7 @@ use File::Basename;
 my $chars = quotemeta(join "", @ARGV);
 
 
-open my $pipe, "-|", qw(git status -s) or die $!;
+open my $pipe, "-|", qw(git status -su) or die $!;
 
 while (<$pipe>) {
   chomp;

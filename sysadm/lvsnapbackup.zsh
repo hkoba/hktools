@@ -8,9 +8,10 @@ function die { warn $*; exit 1 }
 
 function usage {
     (($#argv)) && warn $argv
-    cat 1>&2 <<EOF; exit 1
+    cat 1>&2 <<EOF
 Usage: ${0:t} DESTDIR  SRC-LVM...
 EOF
+    exit 1
 }
 
 utilcmd=lvsnapclone.zsh
@@ -25,6 +26,8 @@ opts=(
 
 dest=$1; shift
 [[ $dest[-1] == '/' ]] || dest+='/'
+
+[[ -e $dest ]] || mkdir -p $dest || die "Can't create destdir"
 
 arglist=()
 for lv in $*; do
