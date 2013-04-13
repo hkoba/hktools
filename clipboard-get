@@ -1,0 +1,20 @@
+#!/usr/bin/wish
+
+package require uri
+
+if {[catch {selection get -selection CLIPBOARD -type UTF8_STRING} url]} {
+   exit 1
+}
+
+if {[llength $argv]} {
+    set dict [uri::split $url]
+    foreach name $argv {
+	puts $name\t[dict get $dict $name]
+    }
+} else {
+    puts $url
+}
+
+exit; # To avoid entering eventloop.
+
+
