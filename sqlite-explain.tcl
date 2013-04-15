@@ -20,20 +20,55 @@ snit::type vdbeanalyzer {
     variable myColList {}
 
     typevariable cursor_op {
+OpenAutoindex
+OpenEphemeral
+OpenPseudo
 OpenRead
+OpenWrite
 Close
 
 SetNumColumns
 
 Rowid
 Column
+Count
+Delete
+Found
+
+IdxDelete
+IdxGe
+IdxInsert
+IdxLt
+IdxRowid
+Insert
+IsUnique
 
 MoveLe
 MoveGe
 NotExists
+NotFound
+NullRow
+
+NewRowid
 
 Next
 Prev
+
+Seek
+SeekGe
+SeekGt
+SeekLt
+SeekLe
+
+SorterCompare
+SorterData
+
+VColumn
+VFilter
+VNext
+VOpen
+
+Halt
     }
 
     typevariable register_op {
