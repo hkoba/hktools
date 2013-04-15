@@ -78,15 +78,29 @@ Integer
 Null
     }
 
+    option -docbase http://www.sqlite.org/opcode.html
     method explain sql {
+	set base $options(-docbase)
+
+	puts {<p>Each cell means: P1 opcode P2 {P3 P4 P5}
+	    <br>For Open*, table type and table name follows
+</p>}
 	puts "<table border class='sqlite-explain'>"
-	foreach line [$self study $sql] {
+	set body [$self study $sql]
+	puts <tr>
+	puts <th>Addr</th>
+	foreach col $myColList {
+	    puts <th>$col</th>
+	}
+	puts </tr>
+	foreach line $body {
 	    puts <tr>
 	    set rest [lassign $line row]
 	    puts "<th id='explain-$row'>$row</th>"
 	    foreach col $rest {
-		lassign $col op ix
-		puts <td>$op
+		lassign $col main ix
+		set rest [lassign $main op p1]
+		puts [subst {<td>$p1 <a href="$base#$op">$op</a> $rest}]
 		if {$ix ne ""} {
 		    puts <br><i>$ix</i>
 		}
@@ -103,7 +117,11 @@ Null
 	set matrix {}
 	set current 0
 	$db eval "explain $sql" {
-	    set cell [list [list $p1 $opcode $p2]]
+	    set main [list $opcode $p1 $p2]
+	    if {$p3 != 0 || $p4 ne "" || $p5 ne "00"} {
+		lappend main [list $p3 $p4 $p5]
+	    }
+	    set cell [list $main]
 	    lappend cell [if {[regexp Open $opcode]} {
 		$self rootpage $p2
 	    }]
@@ -124,7 +142,7 @@ Null
 	    set $vn
 	} else {
 	    set pos [llength $myColList]
-	    lappend myColList [list C $num]
+	    lappend myColList [list Cursor $num]
 	    set $vn $pos
 	}
     }
@@ -135,7 +153,7 @@ Null
 	    set $vn
 	} else {
 	    set pos [llength $myColList]
-	    lappend myColList [list C $num]
+	    lappend myColList [list Reg $num]
 	    set $vn $pos
 	}
     }
