@@ -1,0 +1,42 @@
+#!/bin/zsh
+
+#
+# sudo-signal    - kill PID under sudo -u PROCESS-OWNER
+#
+#
+# Copyright (C) 2013 Hiroaki KOBAYASHI.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License, version 2,
+# as published by the Free Software Foundation.
+
+
+# # sudoers example:
+#
+# %webmaster      ALL=(%staff, webmaster) /bin/kill
+#
+# # By above, users in %webmaster group on ALL hosts can send signals 
+# # to processes which are owned by users in %staff group and webmaster.
+
+set -e
+scriptfn=$0
+
+function die { echo 1>&2 $*; exit 1 }
+function usage {
+    cat 1>&2 <<EOF; exit 1
+Usage: ${scriptfn:t} [-SIG] PID
+EOF
+}
+
+opts=()
+if ((ARGC)) && [[ $1 == -* ]]; then
+    opts+=($1); shift
+fi
+
+((ARGC)) || usage
+
+pid=$1; shift
+
+owner=$(ps --no-headings -p $pid -o user) || die No such process: pid=$pid
+
+sudo -u $owner kill $opts $pid
