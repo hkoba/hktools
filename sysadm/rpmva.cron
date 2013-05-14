@@ -1,0 +1,18 @@
+#!/bin/zsh
+
+logdir=/var/log/rpmva
+logfn=$logdir/rpmva.log
+rcsfn=$logfn,v
+
+function die { echo 1>&2 $*; exit 1 }
+
+[[ -d $logdir ]] || install -d -m 0700 $logdir || die "Can't mkdir $logdir"
+
+nice rpm -Va | sort -k 1.13 > $logfn
+
+[[ -e $rcsfn ]]; first_time=$?; # Note: inverted.
+
+if ((first_time)) || ! rcsdiff -q $logfn; then
+  ((first_time)) || rcs -l $rcsfn
+  ci -q -u -wcron -mauto $logfn </dev/null
+fi
