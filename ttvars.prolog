@@ -2,8 +2,9 @@
 
 % Simple util to make truth table.
 % tested under gnu prolog and swi prolog.
+% See: https://github.com/hkoba/mytools/wiki/ttvars
 
-%    ?- consult('tt.prolog').
+%    ?- consult('ttvars.prolog').
 
 %    | ?- tt([[y,n], [y,n]], writeln).
 %    [y,y]

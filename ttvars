@@ -1,5 +1,7 @@
 #!/bin/zsh
 
+# See: https://github.com/hkoba/mytools/wiki/ttvars
+
 scriptfn=$0
 bindir=$(cd $scriptfn:h; print $PWD)
 
