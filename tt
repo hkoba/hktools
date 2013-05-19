@@ -1,0 +1,57 @@
+#!/bin/zsh
+
+scriptfn=$0
+bindir=$(cd $scriptfn:h; print $PWD)
+
+function die { echo 1>&2 $*; exit 1}
+function usage {
+    if ((ARGC)); then print -- $* 1>&2; fi
+    cat 1>&2 <<EOF; exit 1
+Usage: ${scriptfn:t}  Vars Vars...
+
+Example:
+
+tt y,n yes,no
+
+tt 'x <= 3, x > 3' 'y <= 5, y > 5' 'z <= 0, z > 0'
+
+EOF
+}
+
+if [[ -n $PROLOG_CMD && -x $PROLOG_CMD ]]; then
+    prolog=$PROLOG_CMD
+elif (($+commands[gprolog])); then
+    prolog=gprolog
+elif (($+commands[swipl])); then
+    prolog=swipl
+else
+    die "Can't find prolog interpreter!"
+fi
+
+function list {
+    print -- "[${(j/,/)argv}]"
+}
+
+function cmd_gprolog {
+    # To suppress compilation messages from consult, I use redirection here.
+    # To use this, /dev/fd/3 should be available
+
+    [[ -w /dev/fd/1 ]] || die /dev/fd/N is not available on your system.
+
+    local script input
+    input=$(list \[${^argv//<\=/\=<}\])
+    script=(
+	"consult('$solver')"
+	"open('/dev/fd/3',write,Out)"
+	"set_output(Out)"
+	"(tt($input, write_tsv); halt(0))"
+    )
+    exec 2>/dev/null
+    gprolog --init-goal ${(j/,/)script} 3>&1 1>&2
+}
+
+solver=$scriptfn.prolog
+
+[[ -r $solver ]] || die "Can't find solver program $solver"
+
+cmd_$prolog "$@"
