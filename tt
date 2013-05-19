@@ -50,6 +50,16 @@ function cmd_gprolog {
     gprolog --init-goal ${(j/,/)script} 3>&1 1>&2
 }
 
+function cmd_swipl {
+    local script input
+    input=$(list \[${^argv//<\=/\=<}\])
+    script=(
+	"(tt($input, write_tsv); halt(0))"
+    )
+    exec 2>/dev/null
+    swipl -f $solver -g ${(j/,/)script}
+}
+
 solver=$scriptfn.prolog
 
 [[ -r $solver ]] || die "Can't find solver program $solver"
