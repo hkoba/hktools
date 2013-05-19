@@ -13,9 +13,9 @@ Usage: ${scriptfn:t}  Vars Vars...
 
 Example:
 
-tt y,n yes,no
+${scriptfn:t} y,n yes,no
 
-tt 'x <= 3, x > 3' 'y <= 5, y > 5' 'z <= 0, z > 0'
+${scriptfn:t} 'x <= 3, x > 3' 'y <= 5, y > 5' 'z <= 0, z > 0'
 
 EOF
 }
@@ -65,5 +65,7 @@ function cmd_swipl {
 solver=$scriptfn.prolog
 
 [[ -r $solver ]] || die "Can't find solver program $solver"
+
+((ARGC)) || usage
 
 cmd_$prolog "$@"
