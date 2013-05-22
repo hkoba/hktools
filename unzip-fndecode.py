@@ -3,10 +3,11 @@
 
 import sys
 import zipfile
+import shutil
 
 zfn = sys.argv[1]
 pw = sys.argv[2]
-print 'extracting from %s\n'.format(zfn)
+print 'extracting from {}\n'.format(zfn)
 zip = zipfile.ZipFile(zfn, 'r')
 
 
@@ -15,11 +16,10 @@ zip = zipfile.ZipFile(zfn, 'r')
 
 for zi in zip.infolist():
     ofn = zi.filename.decode('shift-jis').encode('utf-8')
-    print "extracting {}...\n".format(ofn)
+    print "extracting {}...".format(ofn)
     of = open(ofn, 'w')
     with zip.open(zi, 'r', pw) as zr:
-        # XXX: 一括展開なので、メモリーが勿体ない
-        of.write(zr.read())
+        shutil.copyfileobj(zr, of, 4096*16)
     of.close()
     
 
