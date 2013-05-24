@@ -14,7 +14,7 @@ use warnings FATAL => qw/all/;
        $swaps += $1;
     }
     if ($swaps) {
-      print join("\t", $pid, $swaps
+      print join("\t", $swaps, "($pid)"
                  , readlink("/proc/$pid/exe")
                  , read_file("/proc/$pid/cmdline")), "\n";
     }

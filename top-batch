@@ -1,2 +1,2 @@
 #!/bin/sh
-TOPRC=$0.rc exec top -d 3 -b "$@"
+TOPRC=$0.rc exec top -c -d 3 -b "$@"
