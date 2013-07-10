@@ -2,6 +2,19 @@
 
 config=/etc/sysconfig/syscheck.env
 
+progname=$(readlink -f $0)
+
+function cmd_install {
+    [[ -r $config ]] || cp -v $progname.sample $config
+    ln -sv $progname /etc/cron.daily/yz0-syscheck.cron
+    exit
+}
+
+if ((ARGC)); then
+    cmd=$1; shift
+    cmd_$cmd "$@"
+fi
+
 [[ -r $config ]] || exit
 
 set -e
@@ -13,7 +26,15 @@ export SVKROOT=/root/.svk
 for d in $svkwatches; do
    [[ -d $d ]] || continue
    pushd $d
-   { svk status } always { popd }
+   {
+       if [[ -d $d/.git ]]; then
+	   git status -s
+       else
+	   svk status
+       fi
+   } always {
+       popd
+   }
 done
 
 # [2] permission enforcement
