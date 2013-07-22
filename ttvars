@@ -5,7 +5,7 @@
 scriptfn=$0
 bindir=$(cd $scriptfn:h; print $PWD)
 
-function die { echo 1>&2 $*; exit 1}
+function die { echo 1>&2 $*; exit 1 }
 function usage {
     if ((ARGC)); then print -- $* 1>&2; fi
     cat 1>&2 <<EOF; exit 1
@@ -46,26 +46,32 @@ function cmd_gprolog {
 	"consult('$solver')"
 	"open('/dev/fd/3',write,Out)"
 	"set_output(Out)"
-	"(tt($input, write_tsv); halt(0))"
+	"tt($input, write_tsv)"
     )
-    exec 2>/dev/null
-    gprolog --init-goal ${(j/,/)script} 3>&1 1>&2
+    [[ -n $o_verbose ]] || exec 2>/dev/null
+    gprolog --init-goal "(${(j/,/)script};halt(0))" 3>&1 1>&2
 }
 
 function cmd_swipl {
     local script input
     input=$(list \[${^argv//<\=/\=<}\])
     script=(
-	"(tt($input, write_tsv); halt(0))"
+	"tt($input, write_tsv)"
     )
-    exec 2>/dev/null
-    swipl -f $solver -g ${(j/,/)script}
+    [[ -n $o_verbose ]] || exec 2>/dev/null
+    swipl -f $solver -g "(${(j/,/)script};halt(0))"
 }
 
 solver=$scriptfn.prolog
 
 [[ -r $solver ]] || die "Can't find solver program $solver"
 
+zparseopts -D -K h=o_help v=o_verbose x=o_xtrace || usage
+
+[[ -n $o_help ]] && usage
+
 ((ARGC)) || usage
+
+[[ -n $o_xtrace ]] && set $o_xtrace
 
 cmd_$prolog "$@"
