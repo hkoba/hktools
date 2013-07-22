@@ -32,6 +32,7 @@ snit::widget timeseries {
     option -center
 
     option -timeparse "%Y-%m-%d %H:%M:%S"
+    option -timeinput "%Y-%m-%d %H:%M:%S"
     option -timelabel "%Y-%m-%d\n(%a)\n%H:%M:%S"
 
     # 
@@ -170,7 +171,7 @@ snit::widget timeseries {
     method Motion {x y} {
 	$myGraph crosshairs configure -position @$x,$y
 	set sec [expr {int([$myGraph axis invtransform x $x])}]
-	set myCurDate [clock format $sec -format $options(-timeparse)]
+	set myCurDate [clock format $sec -format $options(-timeinput)]
     }
 
     #========================================
@@ -252,7 +253,7 @@ snit::widget timeseries {
 	set max [expr {$goto + $halfwidth}]
 	$myGraph axis configure x -min $min -max $max
 	set options(-center) [clock format $goto \
-				  -format $options(-timeparse)]
+				  -format $options(-timeinput)]
     }
 
     method {add line} {cols {start ""}} {
@@ -317,7 +318,7 @@ snit::widget timeseries {
 	    }
 
 	    if {$i % 10000 == 0} {
-		puts i=$i,sec=$sec,[clock format $sec -format $options(-timeparse)],cols=[lrange $cols 1 end]\r
+		puts i=$i,sec=$sec,[clock format $sec -format $options(-timeinput)],cols=[lrange $cols 1 end]\r
 		$self time goto $sec
 		update
 	    }
