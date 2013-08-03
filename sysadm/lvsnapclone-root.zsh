@@ -3,6 +3,8 @@
 path+=($0:h)
 rehash
 
+autoload colors; colors
+
 function die { echo 1>&2 $*; exit 1 }
 
 zparseopts -D n=dryrun v=verbose x=xtrace -title:=title c:=retry || exit 1
@@ -11,13 +13,14 @@ if ! (($#retry)); then
 fi
 
 if ! ((ARGC)); then
-    die Usage: $0:t 'rootdev=newdev' '?more_devs=more_new_devs...?'
+    die Usage: $0:t 'OLDrootLV=NEWrootLV' '[OLD_LV=NEW_LV]...'
 fi
 
 [[ -x $0:h/lvsnapclone.zsh ]] || die "Can't find lvsnapclone.zsh"
 
 set -e
 
+typeset -A lvmap
 orig_devs=()
 new_devs=()
 clone_list=()
@@ -33,6 +36,7 @@ function list_devs {
 	if [[ $dev[2]:h == '.' ]]; then
 	    dev[2]=$dev[1]:h/$dev[2]
 	fi
+	lvmap[${dev[1]#/dev/}]=${dev[2]#/dev/}
 	orig_devs+=($dev[1])
 	new_devs+=($dev[2])
 	clone_list+=($dev)
@@ -60,32 +64,55 @@ mnt_tmp=/var/tmp/$0:t:r.$$
 
 # initrd
 
-grubby --info=/boot/vmlinuz-$(uname -r) | source /dev/fd/0
+typeset -A curboot
+grubby --info=/boot/vmlinuz-$(uname -r) | while IFS='=' read key value; do
+    # Since title can contain space, source /dev/fd/0 is not ok.
+    # Q is unquoting, for args.
+    curboot[$key]=${(Q)value}
+done
+
+#
+# To replace dracut LVM rd.lvm.lv args (rd_LVM_LV should be replaced too??)
+#
+new_args=("root=$new_devs[1]")
+if [[ -n $curboot[args] ]]; then
+    for x in ${=curboot[args]}; do
+	if [[ $x = root=* ]]; then
+	    # skip
+	elif [[ $x = rd.lvm.lv=* ]] &&
+	    {
+		lv=(${(s/=/)x}); (($+lvmap[$lv[2]]))
+	    }; then
+	    new_args+=($lv[1]=$lvmap[$lv[2]])
+	else
+	    new_args+=($x)
+	fi
+    done
+fi
 
 if (($+commands[dracut])); then
     mkinitrd=()
-    initramfs=$initrd
+    initramfs=$curboot[initrd]
 else
-    initramfs=$initrd:r-new.img
+    initramfs=$curboot[initrd]:r-new.img
     mkinitrd=(-f --fstab=$mnt_tmp/etc/fstab $initramfs $(uname -r))
 fi
 
-print -r lvsnapclone.zsh $clone_list
-print -r orig_devs $orig_devs
-print -r new_devs $new_devs
-print -r sed_args $sed_args
-print -r mnt_tmp $mnt_tmp
+print -r lvsnapclone.zsh $'\t' $clone_list
+print -r lvmap ${(kv)lvmap}
+print -r orig_devs $'\t' $orig_devs
+print -r new_devs $'\t' $new_devs
+print -r sed_args $'\t' $sed_args
+print -r mnt_tmp $'\t' $mnt_tmp
 
 grubby=(
     --title=${title[2][2,-1]:-New clone $new_devs[1]} 
     --make-default --copy-default 
-    --initrd=$initramfs --add-kernel=/boot/$kernel
-    --args="root=$new_devs[1]"
+    --initrd=$initramfs --add-kernel=$curboot[kernel]
+    --args="$new_args"
 )
 
-# XXX: rd.lvm.lv / rd_LVM_LV should be replaced too!
-
-print -r grubby ${(q)grubby}
+print -r grubby ${(qqq)grubby}
 
 if [[ -n $dryrun ]]; then
     exit
@@ -112,7 +139,7 @@ mkdir $mnt_tmp
 
     grubby $grubby
 
-    echo done.
+    echo $bg[green]DONE$bg[default]
 } always {
     rmdir $mnt_tmp
 }
