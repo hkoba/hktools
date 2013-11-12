@@ -20,26 +20,17 @@ snit::type vdbeanalyzer {
     variable myColList {}
 
     typevariable cursor_op {
-OpenAutoindex
-OpenEphemeral
-OpenPseudo
-OpenRead
-OpenWrite
+Open*
 Close
 
 SetNumColumns
 
-Rowid
 Column
 Count
 Delete
 Found
 
-IdxDelete
-IdxGe
-IdxInsert
-IdxLt
-IdxRowid
+Idx*
 Insert
 IsUnique
 
@@ -53,15 +44,17 @@ NewRowid
 
 Next
 Prev
+Rewind
 
-Seek
-SeekGe
-SeekGt
-SeekLt
-SeekLe
+RowData
+Rowid
+RowKey
 
-SorterCompare
-SorterData
+Seek*
+
+Sequence
+
+Sorter*
 
 VColumn
 VFilter
@@ -111,6 +104,15 @@ Null
 	puts </table>
     }
 
+    proc lglobmember {list item} {
+	foreach i $list {
+	    if {[string match $i $item]} {
+		return 1
+	    }
+	}
+	return 0
+    }
+
     method study sql {
 	set db [$self DB]
 	set row 0
@@ -122,10 +124,10 @@ Null
 		lappend main [list $p3 $p4 $p5]
 	    }
 	    set cell [list $main]
-	    lappend cell [if {[regexp Open $opcode]} {
+	    lappend cell [if {[regexp {^Open(Read|Write)} $opcode]} {
 		$self rootpage $p2
 	    }]
-	    if {$opcode in $cursor_op} {
+	    if {[lglobmember $cursor_op $opcode]} {
 		set current [$self get_cursor $p1]
 	    }
 	    set line [struct::list repeat [expr {$current+1}] {}]
