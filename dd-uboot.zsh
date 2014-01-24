@@ -3,6 +3,7 @@
 set -e
 function die { echo 1>&2 $*; exit 1}
 
+progfile=$0
 function usage {
     ((! ARGC)) || echo 1>&2 $*;
     cat 1>&2 <<EOF; exit 1
