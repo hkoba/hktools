@@ -1,6 +1,7 @@
 #!/usr/bin/env wish
 # -*- coding: utf-8 -*-
 
+package require Tcl 8.5
 package require snit
 package require widget::scrolledwindow
 
@@ -13,13 +14,13 @@ snit::widget pointerevents {
     variable mySynConfigs {}
     variable myCurParams -array {}
 
-    option -param SingleTapTimeout
+    option -param MaxTapTime
     option -filter Tap
     option -value ""
 
     constructor args {
-	$self build toplevel
 	$self configurelist $args
+	$self build toplevel
 	after 500 [list after idle [list $self Reload]]
     }
     method {build toplevel} {} {
@@ -117,10 +118,8 @@ snit::widget pointerevents {
     }
 
     method Reload {} {
-	# puts "reloading...(from [info frame 2])"
 	set mySynConfigs [$self param list]
 	if {$options(-param) ne ""} {
-	    # XXX: This will call Change
 	    set options(-value) $myCurParams($options(-param))
 	}
     }
