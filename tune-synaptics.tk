@@ -7,6 +7,7 @@ package require widget::scrolledwindow
 snit::widget pointerevents {
     option -synclient synclient
 
+    component myListener
     component myPane
     component myCanv -public canvas
     component myList
@@ -20,7 +21,13 @@ snit::widget pointerevents {
     method {build toplevel} {} {
 	$self build menu
 
-	install myPane using panedwindow $win.pw
+	set vbox [panedwindow $win.vbox -orient vertical]
+	$vbox add [set sw [widget::scrolledwindow $myPane.sw[incr i]]]
+	install myListener using text $sw.listener -height 3
+	$sw setwidget $myListener
+
+	install myPane using panedwindow $vbox.hbox -orient horizontal
+	$vbox add $myPane
 
 	$myPane add [set sw [widget::scrolledwindow $myPane.sw[incr i]]]
 	install myList using listbox [set w $sw.lb] \
@@ -31,7 +38,11 @@ snit::widget pointerevents {
 	install myCanv using canvas [set w $myPane.sw[incr i]]
 	$sw setwidget $w
 
-	pack $myPane -fill both -expand yes
+	$self bind canvas
+
+	# pack $myPane -fill both -expand yes
+
+	pack $vbox -fill both -expand yes
     }
     method {build menu} {} {
 	[winfo toplevel $win] configure -menu [menu [set m $win.menu]]
@@ -40,6 +51,23 @@ snit::widget pointerevents {
 	$m add cascade -label File -menu [menu $m.file]
 	$m.file add command -label Console -command [list $self console]
     }
+
+    method {bind canvas} {} {
+	bind $myCanv <ButtonPress-1> [list $self Single Press 1]
+	bind $myCanv <ButtonRelease-1> [list $self Single Release 1]
+	bind $myCanv <B1-Motion> [list $self Single Motion 1]
+	bind $myCanv <Double-ButtonPress-1> [list $self Double Press 1]
+	bind $myCanv <Double-ButtonRelease-1> [list $self Double Release 1]
+	bind $myCanv <Double-B1-Motion> [list $self Double Motion 1]
+    }
+
+    method Single args { $self log Single $args }
+    method Double args { $self log Double $args }
+    method log args {
+	$myListener see end
+	$myListener insert end $args\n
+    }
+
 
     method Reload {} {
 	set mySynConfigs [$self param list]
