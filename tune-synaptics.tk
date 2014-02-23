@@ -1,0 +1,72 @@
+#!/usr/bin/env wish
+# -*- coding: utf-8 -*-
+
+package require snit
+package require widget::scrolledwindow
+
+snit::widget pointerevents {
+    option -synclient synclient
+
+    component myPane
+    component myCanv -public canvas
+    component myList
+    variable mySynConfigs {}
+
+    constructor args {
+	$self build toplevel
+	$self configurelist $args
+	$self Reload
+    }
+    method {build toplevel} {} {
+	$self build menu
+
+	install myPane using panedwindow $win.pw
+
+	$myPane add [set sw [widget::scrolledwindow $myPane.sw[incr i]]]
+	install myList using listbox [set w $sw.lb] \
+	    -listvar [myvar mySynConfigs]
+	$sw setwidget $w
+	
+	$myPane add [set sw [widget::scrolledwindow $myPane.sw[incr i]]]
+	install myCanv using canvas [set w $myPane.sw[incr i]]
+	$sw setwidget $w
+
+	pack $myPane -fill both -expand yes
+    }
+    method {build menu} {} {
+	[winfo toplevel $win] configure -menu [menu [set m $win.menu]]
+	wm protocol [winfo toplevel $win] WM_DELETE_WINDOW [list $self Quit]
+
+	$m add cascade -label File -menu [menu $m.file]
+	$m.file add command -label Console -command [list $self console]
+    }
+
+    method Reload {} {
+	set mySynConfigs [$self param list]
+    }
+
+    method {param list} {} {
+	set list {}
+	foreach line [split [exec $options(-synclient)] \n] {
+	    if {![regexp {^\s+(\w+)\s+=\s+(\d+)} $line -> key val]} continue
+	    lappend list [list $key $val]
+	}
+	set list
+    }
+
+    method Quit {} {
+	exit
+    }
+
+    method console {} {
+	package require tclreadline
+	tclreadline::readline eofchar [list $self Quit]
+	after idle tclreadline::Loop
+    }
+}
+
+if {![info level] && [info script] eq $::argv0} {
+    wm geometry . 1000x900
+    pack [pointerevents .win] -fill both -expand yes
+    catch {after 500 {after idle {.win console}}}
+}
