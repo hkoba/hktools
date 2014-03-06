@@ -9,6 +9,7 @@ use POSIX qw(strftime);
 use Time::HiRes qw(gettimeofday);
 use Data::Dumper;
 use FileHandle;
+use File::Spec;
 
 sub usage;
 sub log_fh;
