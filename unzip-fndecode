@@ -7,7 +7,7 @@ use Getopt::Long;
 use File::Path qw(make_path);
 
 use Encode qw(decode);
-use encoding qw(:locale);
+use open IO => qw(:locale);
 
 if (my $enc = encoding::_get_locale_encoding()) {
   binmode STDERR, ":raw :encoding($enc)";
