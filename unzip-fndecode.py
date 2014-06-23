@@ -5,6 +5,10 @@ import sys
 import zipfile
 import shutil
 
+if len(sys.argv) < 3:
+    print "Usage: %s zip password" % sys.argv[0]
+    sys.exit(1)
+
 zfn = sys.argv[1]
 pw = sys.argv[2]
 print 'extracting from {}\n'.format(zfn)
