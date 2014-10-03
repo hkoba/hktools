@@ -75,13 +75,29 @@ Null
     method explain sql {
 	set base $options(-docbase)
 
-	puts {<p>Each cell means: P1 opcode P2 {P3 P4 P5}
+	puts {<!doctype html>
+	    <head>
+	    <style>
+	    .op-next, .op-prev { background: red; }
+	    .op-close { background: #999; }
+
+	    small { font-size: 70%; }
+	    th, td { width: 200px; overflow: scroll; }
+	    th.addr { width: 5em; }
+	    </style>
+	    <body>
+	}
+
+	puts [subst {<h2>SQL</h2><code><pre>$sql</pre></code>}]
+
+	puts "<h2>.explain</h2>"
+	puts {<p>Each cell means: P1 opcode <small>P2 {P3 P4 P5}</small>
 	    <br>For Open*, table type and table name follows
 </p>}
 	puts "<table border class='sqlite-explain'>"
 	set body [$self study $sql]
 	puts <tr>
-	puts <th>Addr</th>
+	puts {<th class="addr">Addr</th>}
 	foreach col $myColList {
 	    puts <th>$col</th>
 	}
@@ -89,11 +105,12 @@ Null
 	foreach line $body {
 	    puts <tr>
 	    set rest [lassign $line row]
-	    puts "<th id='explain-$row'>$row</th>"
+	    puts [subst {<th id="explain-$row" class="addr">$row</th>}]
 	    foreach col $rest {
 		lassign $col main ix
 		set rest [lassign $main op p1]
-		puts [subst {<td>$p1 <a href="$base#$op">$op</a> $rest}]
+		set lower [string tolower $op]
+		puts [subst {<td class="op-$lower">$p1 <a href="$base#$op">$op</a> <small>$rest</small>}]
 		if {$ix ne ""} {
 		    puts <br><i>$ix</i>
 		}
