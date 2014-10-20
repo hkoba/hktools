@@ -78,11 +78,21 @@ Null
 	puts {<!doctype html>
 	    <head>
 	    <style>
+	    .for-idx, .op-seek {
+		background: rgb(107,255,131);
+	    }
+
 	    .op-next, .op-prev { background: red; }
-	    .op-close { background: #999; }
+	    .op-close { background: rgb(249,58,65); }
+
+	    .op-found, .op-notfound,
+	    .op-seekge, .op-seekgt, .op-seeklt, .op-seekle,
+	    .op-idxge, .op-idxgt, .op-idxlt, .op-idxle {
+		background: rgb(103,192,189);
+	    }
 
 	    small { font-size: 70%; }
-	    th, td { width: 200px; overflow: scroll; }
+	    th, td { width: 200px; }
 	    th.addr { width: 5em; }
 	    </style>
 	    <body>
@@ -109,8 +119,12 @@ Null
 	    foreach col $rest {
 		lassign $col main ix
 		set rest [lassign $main op p1]
+		set cls ""
+		if {$op eq "OpenRead" && [lindex $ix 0] eq "index"} {
+		    append cls " for-idx"
+		}
 		set lower [string tolower $op]
-		puts [subst {<td class="op-$lower">$p1 <a href="$base#$op">$op</a> <small>$rest</small>}]
+		puts [subst {<td class="op-$lower $cls">$p1 <a href="$base#$op">$op</a> <small>$rest</small>}]
 		if {$ix ne ""} {
 		    puts <br><i>$ix</i>
 		}
