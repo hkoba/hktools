@@ -11,10 +11,14 @@ function revert-unless-confirmed {
   echo Applying new rules...
   service iptables restart
 
+  local ret="" read_opts=()
+  if is-at-least 5.0; then
+    read_opts+=(-q)
+  fi
   {
-     read -q -t $TIMEOUT "ret?Can you establish NEW connections to the machine? (y/N) "
+     read $read_opts -t $TIMEOUT "ret?Can you establish NEW connections to the machine? (y/N) "
   } always {
-     if (($? == 0)); then
+     if (($? == 0)) && [[ $ret = y || $ret = Y ]]; then
        echo ok.
      else
        echo -n reverting...
