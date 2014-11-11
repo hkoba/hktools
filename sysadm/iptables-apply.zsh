@@ -12,7 +12,9 @@ function revert-unless-confirmed {
   {
      read -q -t $TIMEOUT "ret?Can you establish NEW connections to the machine? (y/N) "
   } always {
-     if (($? > 0)); then
+     if (($? == 0)); then
+       echo ok.
+     else
        echo -n reverting...
        iptables-restore < $saved
        echo done
