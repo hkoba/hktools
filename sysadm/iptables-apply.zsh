@@ -1,5 +1,7 @@
 #!/bin/zsh
 
+set -eu
+
 config=/etc/sysconfig/iptables
 : ${TIMEOUT:=15}
 
