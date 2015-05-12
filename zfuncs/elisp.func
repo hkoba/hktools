@@ -1,0 +1,33 @@
+#!/bin/zsh
+
+if ((!$+functions[die])); then
+    function die { echo 1>&2 $*; exit 1 }
+fi
+
+function quote {
+    print -R \'$*
+}
+
+function pwd_list {
+    local f
+    for f in "$@"; do
+	if [[ $f = /* ]]; then
+	    print -- $f
+	else
+	    print $PWD/$f
+	fi
+    done
+}
+
+function quot_list {
+    local f
+    for f in "$@"; do
+	print -R \""${(q)f}"\"
+    done
+}
+
+function paren_list {
+    local f
+    print -R \($*\)
+}
+
