@@ -23,6 +23,8 @@ package ColSpec {
 		encoded/;
 };
 
+use Scalar::Util qw/looks_like_number/;
+
 #========================================
 
 sub usage {
@@ -150,7 +152,9 @@ BEGIN {
     my ($method, $loc, $ver) = $req
       =~ m{^(\w+)\s+(\S+)\s+(\w+/[\d\.]+)}x
 	or $bad_req = $req
-	  if defined $req and $status < 400;
+	  if defined $req;
+
+    $ip =~ s/:\d+$// if $ip =~ m{^\d+(?:\.\d+){3}};
 
     $loc =~ s/\?(?<query>.*)//s if defined $loc;
 
@@ -284,8 +288,12 @@ sub sql_select_encoded {
 
 sub sql_quote {
   (my MY $opts, my $str) = @_;
-  $str =~ s{\'}{''}g;
-  qq!'$str'!;
+  if (looks_like_number($str)) {
+    $str
+  } else {
+    $str =~ s{\'}{''}g;
+    qq!'$str'!;
+  }
 }
 
 sub column_names {
