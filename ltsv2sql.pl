@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings FATAL => qw/all/;
+use 5.010;
 
 #========================================
 use fields qw/o_table
@@ -13,13 +14,14 @@ use fields qw/o_table
 	     /;
 sub MY () {__PACKAGE__}
 
-package ColSpec {
+{
+  package ColSpec;
   use fields qw/ltsv_name
 		col_name
 		id_name
 		type
 		encoded/;
-};
+}
 
 use Scalar::Util qw/looks_like_number/;
 
