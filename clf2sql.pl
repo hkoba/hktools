@@ -7,6 +7,7 @@ use Carp;
 use fields qw/o_table
 	      o_create
 	      o_transaction
+	      o_help
 	      columns
 
 	      enc_cache
@@ -36,7 +37,10 @@ EOF
 
 {
   my MY $opts = fields::new(MY);
-  $opts->parse_argv(\@ARGV, c => 'create');
+  $opts->parse_argv(\@ARGV, c => 'create', h => 'help');
+
+  usage() if $opts->{o_help};
+
   $opts->{o_table} //= 'access';
   $opts->{o_transaction} //= 1;
 
@@ -48,6 +52,7 @@ EOF
   $opts->add_column(size => type => 'integer');
   $opts->add_column('referer');
   $opts->add_column(ua => enc => 1);
+  $opts->add_column('query');
 
   print "BEGIN;\n" if $opts->{o_transaction};
 
@@ -147,6 +152,8 @@ BEGIN {
 	or $bad_req = $req
 	  if defined $req and $status < 400;
 
+    $loc =~ s/\?(?<query>.*)//s if defined $loc;
+
     [$ip
      , seconds($clftime)
      , $method
@@ -155,6 +162,7 @@ BEGIN {
      , $nbytes
      , $referer
      , $agent
+     , $+{query}
     ]
   }
 }
@@ -196,15 +204,8 @@ sub as_create {
   } @{$opts->{columns}})."\n;";
 
   # XXX: column name quoting
-  push @ddl, "CREATE VIEW if not exists v_$opts->{o_table}"
-    . " AS SELECT ".join(", ", map {
-      my ColSpec $col = $_;
-      if ($col->{encoded}) {
-	"$col->{col_name}.$col->{col_name} as $col->{col_name}"
-      } else {
-	$col->{col_name};
-      }
-  } @{$opts->{columns}})." FROM "
+  push @ddl, "CREATE VIEW if not exists raw_$opts->{o_table}"
+    . " AS SELECT $opts->{o_table}.rowid as 'rowid', * FROM "
     .join(" LEFT JOIN ", $opts->{o_table}, map {
       my ColSpec $col = $_;
       if ($col->{encoded}) {
@@ -213,6 +214,12 @@ sub as_create {
 	();
       }
     } @{$opts->{columns}}).";";
+
+  push @ddl, "CREATE VIEW if not exists v_$opts->{o_table}"
+    . " AS SELECT rowid, ".join(", ", map {
+      my ColSpec $col = $_;
+      $col->{col_name};
+  } @{$opts->{columns}})." FROM raw_$opts->{o_table};";
 
   join("\n", @ddl, @indices)."\n";
 }
