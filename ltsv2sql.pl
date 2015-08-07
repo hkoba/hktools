@@ -27,15 +27,24 @@ use Scalar::Util qw/looks_like_number/;
 
 sub usage {
   die <<EOF;
-Usage: $0 +COL +COL...  LTSV_FILE...
+Usage: $0 [-c] [--table=TAB] +COL +COL...  LTSV_FILE...
 
 -c --create    emit DDL(create table) too.
 --table=TAB    specify table name
 
 +COL           Column to be taken from LTSV
-+COL=LOG       Like above, but with renaming
-+COL=LOG=TYPE  Like above, but with explicit column type
++COL=LOG       Like above, but with renaming (insert LOG as COL)
+
+  You can specify column type as ':TYPE'
+
++COL:TYPE      Like above, but with explicit column type
++COL=LOG:TYPE  Like above, but with explicit column type
+
+  You can also encode values into another table with leading '++'.
+
 ++COL          Like above, but with separate (encoding) table.
+++COL=LOG
+++COL=LOG:TYPE
 EOF
 }
 
@@ -58,10 +67,13 @@ EOF
 
   print $opts->as_create if $opts->{o_create};
 
-  while (<>) {
-    chomp;
-    my %log = map {split ":", $_, 2} split "\t";
-    print $opts->as_insert(\%log);
+  if (@ARGV) {
+    # To support DDL only mode.
+    while (<>) {
+      chomp;
+      my %log = map {split ":", $_, 2} split "\t";
+      print $opts->as_insert(\%log);
+    }
   }
 
   print "COMMIT;\n" if $opts->{o_transaction};
@@ -204,10 +216,11 @@ sub parse_argv {
   while (@$argv and $argv->[0]
 	 =~ m{^--?(?<opt>\w+)(?:=(?<val>.*))?
 	    |^\+(?<enc>\+)?
-	      (?<key>[^=\s]+)
-	      (?:=(?<ltsvname>[^=]*)
-		(?:=(?<type>[^=]+))?
+	      (?<key>[^=:\s]+)
+	      (?:=(?<ltsvname>[^=:]*)
+		(?:=(?<type>[^=:]+))?
 	      )?
+	      (?::(?<type>[^:]+))?
 	   }x) {
     if (defined $+{key}) {
       $opts->accept_column_option(\%+);
@@ -221,3 +234,29 @@ sub parse_argv {
   }
   $opts;
 }
+
+__END__
+
+# For example:
+
+spec=(
+   +'begin:datetime'
+   ++cookie=cookie.Apache
+   ++host
+   +query
+   '+status:integer'
+   '+size:integer'
+   +referer
+   ++ua
+   ++method
+   ++protocol
+   '+port:integer'
+   '+took_usec=usec:integer'
+   +completed
+)
+
+ltsv2sql.pl -c $spec access_log.ltsv
+
+# LogFormat "host:%h\tident:%l\tuser:%u\tstatus:%>s\tsize:%b\treferer:%{Referer}i\tua:%{User-Agent}i\tmethod:%m\tpath:%U%q\tprotocol:%H\tport:%{remote}p\tbegin:%{begin:%Y-%m-%d %H:%M:%S}t.%{begin:msec_frac}t %{%z}t\tusec:%D\tcompleted:%X\tcookie.Apache:%{Apache}C\tquery:%q" combined_ltsv
+
+# CustomLog "logs/access_log.ltsv" combined_ltsv
