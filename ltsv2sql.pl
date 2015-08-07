@@ -6,6 +6,7 @@ use warnings FATAL => qw/all/;
 use fields qw/o_table
 	      o_create
 	      o_transaction
+	      o_help
 	      columns
 
 	      enc_cache
@@ -19,6 +20,8 @@ package ColSpec {
 		type
 		encoded/;
 };
+
+use Scalar::Util qw/looks_like_number/;
 
 #========================================
 
@@ -40,7 +43,10 @@ EOF
 
 {
   my MY $opts = fields::new(MY);
-  $opts->parse_argv(\@ARGV, c => 'create');
+  $opts->parse_argv(\@ARGV, c => 'create', h => 'help');
+
+  usage() if $opts->{o_help};
+
   $opts->{o_table} //= 'access';
   $opts->{o_transaction} //= 1;
 
@@ -87,15 +93,8 @@ sub as_create {
   } @{$opts->{columns}})."\n;";
 
   # XXX: column name quoting
-  push @ddl, "CREATE VIEW if not exists v_$opts->{o_table}"
-    . " AS SELECT ".join(", ", map {
-      my ColSpec $col = $_;
-      if ($col->{encoded}) {
-	"$col->{col_name}.$col->{col_name} as $col->{col_name}"
-      } else {
-	$col->{col_name};
-      }
-  } @{$opts->{columns}})." FROM "
+  push @ddl, "CREATE VIEW if not exists raw_$opts->{o_table}"
+    . " AS SELECT $opts->{o_table}.rowid as 'rowid', * FROM "
     .join(" LEFT JOIN ", $opts->{o_table}, map {
       my ColSpec $col = $_;
       if ($col->{encoded}) {
@@ -104,6 +103,12 @@ sub as_create {
 	();
       }
     } @{$opts->{columns}}).";";
+
+  push @ddl, "CREATE VIEW if not exists v_$opts->{o_table}"
+    . " AS SELECT rowid, ".join(", ", map {
+      my ColSpec $col = $_;
+      $col->{col_name};
+  } @{$opts->{columns}})." FROM raw_$opts->{o_table};";
 
   join("\n", @ddl, @indices)."\n";
 }
@@ -164,8 +169,12 @@ sub sql_select_encoded {
 
 sub sql_quote {
   (my MY $opts, my $str) = @_;
-  $str =~ s{\'}{''}g;
-  qq!'$str'!;
+  if (looks_like_number($str)) {
+    $str
+  } else {
+    $str =~ s{\'}{''}g;
+    qq!'$str'!;
+  }
 }
 
 sub column_names {
