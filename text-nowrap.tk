@@ -29,7 +29,11 @@ namespace eval text-nowrap {
     }
 
     public proc read_file {fn args} {
-	set fh [open $fn]
+	if {$fn eq "-"} {
+	    set fh stdin
+	} else {
+	    set fh [open $fn]
+	}
 	if {$args ne ""} {
 	    fconfigure $fh {*}$args
 	}
@@ -45,6 +49,7 @@ namespace eval text-nowrap {
 	set result {}
 	while {[llength $args]} {
 	    if {![regexp ^- [lindex $args 0]]} break
+	    if {[lindex $args 0] eq "-"} break; # skip "-"
 	    set args [lassign $args opt]
 	    if {$opt eq "--"} break
 	    if {[regexp {^-(-no)?(-\w[\w\-]*)(=(.*))?} $opt \
