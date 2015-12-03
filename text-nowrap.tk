@@ -11,7 +11,11 @@ snit::widget text-nowrap {
     
     component myText -inherit yes
 
+    option -selection no
+
     constructor args {
+
+	$self configurelist $args
 
 	pack [set sw [ScrolledWindow $win.sw]] -fill both -expand yes
 
@@ -87,14 +91,13 @@ if {![info level] && [info script] eq $::argv0} {
 
 	    read_file [lindex $::argv 0]
 
-	} elseif {[set data [selection get -selection CLIPBOARD]] ne ""} {
-
-	    set data
-
 	} else {
-
-	    selection get
-
+	    if {[.win cget -selection]
+		|| [set data [selection get -selection CLIPBOARD]] eq ""} {
+		selection get
+	    } else {
+		set data
+	    }
 	}]
     }}
 }
