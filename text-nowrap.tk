@@ -1,0 +1,95 @@
+#!/bin/sh
+# -*- mode: tcl; coding: utf-8 -*-
+# the next line restarts using tclsh \
+    exec wish -encoding utf-8 "$0" ${1+"$@"}
+
+package require Tcl 8.5
+package require BWidget
+package require snit
+
+snit::widget text-nowrap {
+    
+    component myText -inherit yes
+
+    constructor args {
+
+	pack [set sw [ScrolledWindow $win.sw]] -fill both -expand yes
+
+	install myText using text $sw.text -wrap none
+
+	$sw setwidget $myText
+    }
+}
+
+namespace eval text-nowrap {
+
+    proc public {kind name args} {
+	$kind $name {*}$args
+	namespace export $name
+    }
+
+    public proc read_file {fn args} {
+	set fh [open $fn]
+	if {$args ne ""} {
+	    fconfigure $fh {*}$args
+	}
+	set data [read $fh]
+	close $fh
+	set data
+    }
+    
+    #========================================
+    # 制限付きの、 posix long option parser.
+    public proc posix-getopt {argVar {dict ""} {shortcut ""}} {
+	upvar 1 $argVar args
+	set result {}
+	while {[llength $args]} {
+	    if {![regexp ^- [lindex $args 0]]} break
+	    set args [lassign $args opt]
+	    if {$opt eq "--"} break
+	    if {[regexp {^-(-no)?(-\w[\w\-]*)(=(.*))?} $opt \
+		     -> no name eq value]} {
+		if {$no ne ""} {
+		    set value no
+		} elseif {$eq eq ""} {
+		    set value [expr {1}]
+		}
+	    } elseif {[dict exists $shortcut $opt]} {
+		set name [dict get $shortcut $opt]
+		set value [expr {1}]
+	    } else {
+		error "Can't parse option! $opt"
+	    }
+	    lappend result $name $value
+	    if {[dict exists $dict $name]} {
+		dict unset dict $name
+	    }
+	}
+	list {*}$dict {*}$result
+    }
+}
+
+if {![info level] && [info script] eq $::argv0} {
+
+    namespace import text-nowrap::*
+    
+    apply {{} {
+	
+	pack [text-nowrap .win {*}[posix-getopt ::argv]] \
+	    -fill both -expand yes
+    
+	.win insert end [if {$::argv ne ""} {
+
+	    read_file [lindex $::argv 0]
+
+	} elseif {[set data [selection get -selection CLIPBOARD]] ne ""} {
+
+	    set data
+
+	} else {
+
+	    selection get
+
+	}]
+    }}
+}
