@@ -51,6 +51,17 @@ function size_gig {
     size_gig=$[size_sector/2048/1024]
 }
 
+#
+# Thinpool is not supported.
+#
+function is_thinpool {
+    local src=$1 attr
+    
+    lvs -o lv_attr --noheadings $src | read attr
+    
+    [[ $attr == t* ]]
+}
+
 
 if [[ -n $xtrace ]]; then
     set -x
@@ -88,9 +99,21 @@ function load_knownVG {
 }
 load_knownVG
 
+function lvremove_with_retry {
+    if ! x lvremove -f $t && (($#retry_count)); then
+	for ((i=1; i <= $retry_count[-1]; i++)); do
+	    lvremove -f $t && break
+	done
+    fi
+}
+
 {
     # 1st. Prepare all snapshot and destination.
     for s d in $*; do
+	if is_thinpool $s; then
+	    continue
+	fi
+
 	size_gig $s
 
 	# XXX: snapshot size option.
@@ -112,29 +135,32 @@ load_knownVG
 	destDict[$snap]=$d
 	srcDict[$snap]=$s
     done
+}
 
+snapCreated=()
+{
     # 2nd. Create snapshots.
     for snap in $snapList; do
 	sync
 	x lvcreate --snapshot --name $snap:t -L2G $srcDict[$snap]
+	snapCreated+=($snap)
     done
 	
     # 3rd. Copy snapshot to destination.
-    for t in $snapList; do
+    for t in $snapCreated; do
 	# XXX: time/nice option.
 	# XXX: make background and progress watching by kill -USR1
 	x dd if=$t of=$destDict[$t] conv=sync,noerror bs=1M
 	# XXX: this assumes ext2/3/4
 	x tune2fs -U $(uuidgen) $destDict[$t]
-	if ! x lvremove -f $t && (($#retry_count)); then
-	    for ((i=1; i <= $retry_count[-1]; i++)); do
-		lvremove -f $t && break
-	    done
-	fi
+	lvremove_with_retry $t
+	shift snapCreated
     done
 
 } always {
-    # x lvremove -f $snapList
+    if (($#snapCreated)); then
+	x lvremove -f $snapCreated
+    fi
 }
 
 # ./lvsnapclone.zsh /dev/vghk08/fc6root /dev/vghk08/fc6root-bak /dev/vghk08/fc6var /dev/vghk08/fc6var-bak
