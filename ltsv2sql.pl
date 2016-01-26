@@ -20,6 +20,7 @@ sub MY () {__PACKAGE__}
 		col_name
 		id_name
 		type
+		is_text
 		encoded/;
 }
 
@@ -157,12 +158,12 @@ sub sql_values {
       'NULL'
     } elsif ($col->{encoded}) {
       unless ($opts->{enc_cache}{$col->{col_name}}{$value}++) {
-	push @encoder, $opts->sql_encode($col->{col_name}, $value);
+	push @encoder, $opts->sql_encode($col, $value);
       }
       # ensure encoded
-      $opts->sql_select_encoded($col->{col_name}, $value)
+      $opts->sql_select_encoded($col, $value)
     } else {
-      $opts->sql_quote($value)
+      $opts->sql_quote_col($col, $value)
     }
   } @coldefs).")";
 
@@ -170,20 +171,21 @@ sub sql_values {
 }
 
 sub sql_encode {
-  (my MY $opts, my ($colname, $value)) = @_;
-  "INSERT or IGNORE into ".$opts->sql_insert($colname, $colname)
-    . " VALUES(".$opts->sql_quote($value).");\n";
+  (my MY $opts, my ColSpec $col, my ($value)) = @_;
+  "INSERT or IGNORE into ".$opts->sql_insert($col->{col_name}, $col->{col_name})
+    . " VALUES(".$opts->sql_quote_col($col, $value).");\n";
 }
 
 sub sql_select_encoded {
-  (my MY $opts, my ($colname, $value)) = @_;
-  "(SELECT ${colname}_id from $colname where $colname = "
-    .$opts->sql_quote($value).")";
+  (my MY $opts, my ColSpec $col, my ($value)) = @_;
+  "(SELECT $col->{col_name}_id from $col->{col_name} where $col->{col_name} = "
+    .$opts->sql_quote_col($col, $value).")";
 }
 
-sub sql_quote {
-  (my MY $opts, my $str) = @_;
-  if (looks_like_number($str)) {
+sub sql_quote_col {
+  (my MY $opts, my ColSpec $col, my $str) = @_;
+  if (not $col->{is_text}
+      and looks_like_number($str)) {
     $str
   } else {
     $str =~ s{\'}{''}g;
@@ -205,6 +207,7 @@ sub accept_column_option {
   $col->{col_name} = $match->{key};
   $col->{ltsv_name} = $match->{ltsvname} || $col->{col_name};
   $col->{type} = $match->{type} // 'text';
+  $col->{is_text} = $col->{type} eq 'text';
   if ($col->{encoded} = $match->{enc}) {
     $col->{id_name} = "$col->{col_name}_id";
   }
