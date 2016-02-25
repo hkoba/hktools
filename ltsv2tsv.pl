@@ -38,5 +38,5 @@ END
 }
 
 sub tsv {
-  join("\t", @_)."\n";
+  join("\t", map {$_ // ''} @_)."\n";
 }
