@@ -6,6 +6,8 @@ rcsfn=$logfn,v
 
 function die { echo 1>&2 $*; exit 1 }
 
+(($+commands[ci])) || die "rcs (ci) is not installed! exiting..."
+
 [[ -d $logdir ]] || install -d -m 0700 $logdir || die "Can't mkdir $logdir"
 
 nice rpm -Va > $logfn.tmp 2> $logfn.err
