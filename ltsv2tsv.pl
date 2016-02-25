@@ -26,7 +26,12 @@ sub MY () {__PACKAGE__}
   print tsv(@headers) unless $opts->{o_noheader};
   while (<>) {
     chomp;
-    my %log = map {split ":", $_, 2} split "\t";
+    my @pairs = map {split ":", $_, 2} split "\t";
+    if (@pairs % 2 != 0) {
+      warn "Non LTSV input($_), ignored.\n";
+      next;
+    }
+    my %log = @pairs;
     print tsv(@log{@headers});
   }
 }
