@@ -128,6 +128,8 @@ else
     $SHELL
 fi
 
+sync
+
 until fusermount -u $mnt; do
   print "sleeping to retry umount..."; sleep 1;
 done
