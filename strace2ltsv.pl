@@ -2,6 +2,16 @@
 use strict;
 use warnings;
 
+#
+# This script converts output of strace(1) to ltsv.
+#
+# Supported strace options (I hope;-) are:
+#
+# -f       (follow fork)
+# -t,-tt   (the time of day (microseconds))
+# -T       (The time spent in system call)
+#
+
 {
   while (<>) {
     m{^
@@ -19,7 +29,7 @@ use warnings;
 
     my @head = map {
       my $v = $+{$_}; defined $v ? "$_:$v" : ();
-    } qw/pid time elapsed ret/;
+    } qw/pid time elapsed ret/; # Print in this order.
 
     print tsv(@head, "syscall:$+{'syscall'}"), "\n";
   }
@@ -27,7 +37,7 @@ use warnings;
 
 sub tsv {
   join "\t", map {
-    s/\t/ /g;
+    s/[\t\n]/ /g;
     $_;
   } @_;
 }
