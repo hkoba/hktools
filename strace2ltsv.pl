@@ -19,19 +19,27 @@ use warnings;
       (?:(?<time>[\d:\.]+)\ )?
       (?<syscall>\S.*?)
       (?:
-	\ =\ (?<ret>\d+)
+	\ =\ (?<ret>\S.*?)
 	(?:
 	  \ <(?<elapsed>[\d\.]+)>
 	)?
+	| <(?:(?<unfinished>unfinished)
+	    |(?<detached>detached)
+	    )
+	    \ \.\.\.>
       )?
       $
    }x or die "Can't parse strace output: $_";
 
-    my @head = map {
+    my ($syscall, @cols) = map {
       my $v = $+{$_}; defined $v ? "$_:$v" : ();
-    } qw/pid time elapsed ret/; # Print in this order.
+    } qw/syscall pid time elapsed ret/; # Print in this order.
 
-    print tsv(@head, "syscall:$+{'syscall'}"), "\n";
+    my @other = map {
+      $+{$_} ? "special:$_" : ()
+    } qw/unfinished detached/;
+
+    print tsv(@cols, @other, $syscall), "\n";
   }
 }
 
