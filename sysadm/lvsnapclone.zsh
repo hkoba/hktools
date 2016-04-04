@@ -9,16 +9,53 @@ setopt extendedglob numericglobsort
 
 function die { echo 1>&2 $*; exit 1 }
 
-zparseopts -D n=dryrun x=xtrace c:=retry_count || exit 1
+progname=$0
+function usage {
+    cat 1>&2 <<EOF
+Usage: ${progname:t} [OPTION]... SOURCE DEST  SRC2 DEST2...
+Clone Logical Volume SOURCE to DEST, using LVM Snapshot.
 
-((ARGC >= 2 && ARGC % 2 == 0)) ||
-die "Usage: [-n] [-v] [-x] ${0##/*} src-lv dest src2 dest2..."
+Options:
+-n        Dry run
+-N        Use ionice
+-U        Update UUID for known filesystems (currently ext2/3/4)
+EOF
+    exit 1
+}
+
+opts=(
+    n=dryrun
+    x=xtrace
+    v=verbose
+    h=o_help
+
+    U=o_update_uuid
+    N=o_nice
+
+    '-preserve_snapshot=o_preserve_snapshot'
+
+    'c:=retry_count'
+)
+
+zparseopts -D $opts || exit 1
+# XXX: Unfortunately, zparseopts doesn't raise error.
+
+((ARGC >= 2 && ARGC % 2 == 0)) || usage
+((! $#o_help)) || usage
+
+missing_cmd=()
+for cmd in lvdisplay lvcreate lvremove blkid dd; do
+    (($+commands[$cmd])) || missing_cmd+=($cmd)
+done
+if (($#missing_cmd)); then
+    die "Can't find $missing_cmd please install it first!"
+fi
 
 # To avoid lvm warnings of leaked fd.
 function close_leaked_special_fds {
     local fd
     integer fdno;
-    for fd in /dev/fd/<3->(N); do
+    for fd in /dev/fd/<4->(N); do
 	[[ -f $fd ]] && continue
 	fdno=$fd:t;
 	exec {fdno}<&- || true
@@ -27,7 +64,8 @@ function close_leaked_special_fds {
     # remains=(/dev/fd/<3->(N))
     # print remains: ${${^remains}:t}
 }
-close_leaked_special_fds
+
+close_leaked_special_fds 2>/dev/null
 
 function x {
     print -- "$@"
@@ -51,6 +89,10 @@ function size_gig {
     size_gig=$[size_sector/2048/1024]
 }
 
+nice=()
+if (($#o_nice)); then
+    nice=(ionice)
+fi
 
 if [[ -n $xtrace ]]; then
     set -x
@@ -88,15 +130,53 @@ function load_knownVG {
 }
 load_knownVG
 
+function after_clone_hook_for {
+    local from=$1 clone=$2 fstype hook
+    
+    if [[ -e $from ]] &&
+       fstype=$(blkid -p -u filesystem -s TYPE -o value $from) &&
+       hook=after_clone_$fstype &&
+       (($+functions[$hook])); then
+
+	$hook $clone
+    else
+	# no hooks
+    fi
+}
+
+function after_clone_ext2 { after_clone_ext234 "$@" }
+function after_clone_ext3 { after_clone_ext234 "$@" }
+function after_clone_ext4 { after_clone_ext234 "$@" }
+
+function after_clone_ext234 {
+    local clone=$1
+	
+    if (($#o_update_uuid)); then
+	x tune2fs -U $(uuidgen) $clone
+    fi
+}
+
+function remove_snaplist {
+    if ((! $#o_preserve_snapshot && $#snapList)); then
+	x lvremove -f $snapList
+    fi
+}
+
 {
-    # 1st. Prepare all snapshot and destination.
+    trap remove_snaplist INT
+
+    # 1st. Prepare all destinations and determine snapshot path for them.
+    # XXX: Total capacity checking for destination(s), before actual lvcreate.
     for s d in $*; do
 	size_gig $s
 
 	# XXX: snapshot size option.
 	t=snap$#snapList
 	snap=$s:h/$t
-	snapList+=($snap)
+
+	if [[ -e $snap ]]; then
+	    die "Snapshot $snap already exists! Precheck failed!"
+	fi
 
 	if is_lvm_path $d destvg destname; then
 	    if [[ -z $destname ]]; then
@@ -111,6 +191,7 @@ load_knownVG
 
 	destDict[$snap]=$d
 	srcDict[$snap]=$s
+	snapList+=($snap)
     done
 
     # 2nd. Create snapshots.
@@ -121,20 +202,19 @@ load_knownVG
 	
     # 3rd. Copy snapshot to destination.
     for t in $snapList; do
-	# XXX: time/nice option.
+	# XXX: time option.
 	# XXX: make background and progress watching by kill -USR1
-	x dd if=$t of=$destDict[$t] conv=sync,noerror bs=1M
-	# XXX: this assumes ext2/3/4
-	x tune2fs -U $(uuidgen) $destDict[$t]
-	if ! x lvremove -f $t && (($#retry_count)); then
-	    for ((i=1; i <= $retry_count[-1]; i++)); do
-		lvremove -f $t && break
-	    done
-	fi
+	x $nice dd if=$t of=$destDict[$t] conv=sync,noerror bs=1M
+
+	after_clone_hook_for $srcDict[$t] $destDict[$t]
+
+	x lvremove -f $t
+
+	unset "snapList[(ri)$t]"
     done
 
 } always {
-    # x lvremove -f $snapList
+    remove_snaplist
 }
 
 # ./lvsnapclone.zsh /dev/vghk08/fc6root /dev/vghk08/fc6root-bak /dev/vghk08/fc6var /dev/vghk08/fc6var-bak
