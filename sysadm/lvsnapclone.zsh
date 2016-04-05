@@ -11,6 +11,9 @@ function die { echo 1>&2 $*; exit 1 }
 
 progname=$0
 function usage {
+    if ((ARGC)); then
+	print -- "$@" 1>&2
+    fi
     cat 1>&2 <<EOF
 Usage: ${progname:t} [OPTION]... SOURCE DEST  SRC2 DEST2...
 Clone Logical Volume SOURCE to DEST, using LVM Snapshot.
@@ -18,7 +21,9 @@ Clone Logical Volume SOURCE to DEST, using LVM Snapshot.
 Options:
 -n        Dry run
 -N        Use ionice
--U        Update UUID for known filesystems (currently ext2/3/4)
+-U        Update UUID for known filesystems (currently ext2/3/4 only)
+-P        Show dd progress using status=progress in dd
+-S        Use conv=sparse in dd
 EOF
     exit 1
 }
@@ -31,6 +36,8 @@ opts=(
 
     U=o_update_uuid
     N=o_nice
+    P=o_progress
+    S=o_sparse
 
     '-preserve_snapshot=o_preserve_snapshot'
 
@@ -39,8 +46,7 @@ opts=(
 
 zparseopts -D $opts || exit 1
 # XXX: Unfortunately, zparseopts doesn't raise error.
-
-((ARGC >= 2 && ARGC % 2 == 0)) || usage
+((ARGC >= 2 && ARGC % 2 == 0)) || usage "Invalid arguments: $argv"
 ((! $#o_help)) || usage
 
 missing_cmd=()
@@ -159,6 +165,7 @@ function after_clone_ext234 {
 function remove_snaplist {
     if ((! $#o_preserve_snapshot && $#snapList)); then
 	x lvremove -f $snapList
+	snapList=()
     fi
 }
 
@@ -200,21 +207,57 @@ function remove_snaplist {
 	x lvcreate --snapshot --name $snap:t -L2G $srcDict[$snap]
     done
 	
+    conv=(
+	sync
+	noerror
+    )
+    if (($#o_sparse)); then
+	conv+=(sparse)
+    fi
+
+    iflags=()
+    iflags+=(direct)
+
+    oflags=()
+    oflags+=(nocache)
+
+    dd_opts=(
+	conv=${(j/,/)conv}
+	bs=64K
+    )
+    ((! $#iflags)) || dd_opts+=(iflag=${(j/,/)iflags})
+    ((! $#oflags)) || dd_opts+=(oflag=${(j/,/)oflags})
+
+    if (($#o_progress)); then
+	# XXX: Requires recent dd
+	dd_opts+=(status=progress)
+    fi
+
     # 3rd. Copy snapshot to destination.
     for t in $snapList; do
 	# XXX: time option.
 	# XXX: make background and progress watching by kill -USR1
-	x $nice dd if=$t of=$destDict[$t] conv=sync,noerror bs=1M
+	x $nice dd if=$t of=$destDict[$t] $dd_opts ||
+	    break
 
 	after_clone_hook_for $srcDict[$t] $destDict[$t]
 
 	x lvremove -f $t
 
-	unset "snapList[(ri)$t]"
+	shift snapList
     done
 
 } always {
+
     remove_snaplist
+
+    if ((TRY_BLOCK_ERROR)); then
+	exit $TRY_BLOCK_ERROR
+    fi
 }
+
+if (($#o_preserve_snapshot && $#snapList)); then
+    print -l $snapList
+fi
 
 # ./lvsnapclone.zsh /dev/vghk08/fc6root /dev/vghk08/fc6root-bak /dev/vghk08/fc6var /dev/vghk08/fc6var-bak
