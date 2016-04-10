@@ -31,7 +31,7 @@ dest=$1; shift
 
 arglist=()
 for lv in $*; do
-    arglist+=($lv $dest)
+    arglist+=($lv $dest$lv:t)
 done
 
 $utilcmd $opts $arglist
