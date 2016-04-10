@@ -92,7 +92,7 @@ function size_gig {
 
     size_sector=${${(s/:/)$(lvdisplay -c $src)}[7]} ||
     die "Can't find LV size of $src"
-    size_gig=$[size_sector/2048/1024]
+    size_gig=$[(size_sector/2048.0/1024 + 0.999) &~0]
 }
 
 nice=()
