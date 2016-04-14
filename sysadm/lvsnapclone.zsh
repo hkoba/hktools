@@ -252,7 +252,7 @@ function remove_snaplist {
     remove_snaplist
 
     if ((TRY_BLOCK_ERROR)); then
-	exit $TRY_BLOCK_ERROR
+	die ERROR=$TRY_BLOCK_ERROR
     fi
 }
 
