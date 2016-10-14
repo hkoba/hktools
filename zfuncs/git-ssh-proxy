@@ -44,7 +44,7 @@ chmod a+x $scriptFn
 mkdir -p $ctrlDir
 
 zmodload zsh/zpty
-zpty GIT_SSH-$host ssh -A -M -o ControlPath=$ssh_ctrl $host /bin/sh
+zpty -b GIT_SSH-$host ssh -A -M -o ControlPath=$ssh_ctrl $host /bin/sh
 # -o ControlPersist=yes
 
 export GIT_SSH=$scriptFn
