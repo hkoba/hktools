@@ -4,9 +4,12 @@ emulate -L zsh
 
 setopt localoptions extendedglob errreturn
 
-local usage="Usage: $0 HOST"
+local o_quiet o_help
+local usage="Usage: $0 [-h] [-q] HOST"
 
-if ((! ARGC)); then
+zparseopts -D -K q=o_quiet h=o_help
+
+if ((! ARGC)) || (($#o_help)); then
     print $usage
     return 1
 fi
@@ -27,6 +30,8 @@ local scriptFn=$tmpDir/git-ssh-$host
 local ctrlDir=$scriptFn.d
 local ssh_ctrl=$ctrlDir/ssh-%h%p
 
+if [[ ! -e $scriptFn ]]; then
+    (($#o_quiet)) || echo Creating proxy script $scriptFn
 sed -e "s,@ORIG_HOST@,$host,g" -e "s,@SSH_CTRL@,$ssh_ctrl,g" > $scriptFn <<'EOF'
 #!/bin/zsh
 zparseopts -D -K p=o_port
@@ -38,10 +43,11 @@ else
   ssh -A -S @SSH_CTRL@ $orig_host ssh -q $o_port $host "$@"
 fi
 EOF
+fi
 
-chmod a+x $scriptFn
+[[ -x $scriptFn ]] || chmod a+x $scriptFn
 
-mkdir -p $ctrlDir
+[[ -d $ctrlDir ]] || mkdir -p $ctrlDir
 
 zmodload zsh/zpty
 zpty -b GIT_SSH-$host ssh -A -M -o ControlPath=$ssh_ctrl $host /bin/sh
@@ -49,4 +55,4 @@ zpty -b GIT_SSH-$host ssh -A -M -o ControlPath=$ssh_ctrl $host /bin/sh
 
 export GIT_SSH=$scriptFn
 
-echo GIT_SSH=$scriptFn
+(($#o_quiet)) || echo GIT_SSH=$scriptFn
