@@ -2,7 +2,7 @@
 
 emulate -L zsh
 
-setopt localoptions extendedglob errreturn
+setopt local_options extended_glob err_return
 
 local o_quiet o_help
 local usage="Usage: $0 [-h] [-q] HOST"
