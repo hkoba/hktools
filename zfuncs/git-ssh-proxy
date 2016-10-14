@@ -41,7 +41,7 @@ EOF
 
 chmod a+x $scriptFn
 
-mkdir $ctrlDir
+mkdir -p $ctrlDir
 
 zmodload zsh/zpty
 zpty GIT_SSH-$host ssh -A -M -o ControlPath=$ssh_ctrl $host /bin/sh
