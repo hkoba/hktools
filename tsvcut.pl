@@ -19,13 +19,23 @@ use Getopt::Long;
     die "Please specifly column name!\n";
   }
 
+  unshift @ARGV, '-' unless @ARGV;
+
   local ($/, $\) = map {$_, $_} $o_unix ? "\n" : "\r\n";
 
   foreach my $fn (@ARGV) {
-    open my $fh, '<', $fn;
+    my $fh;
+    if ($fn eq '-') {
+      $fh = \*STDIN;
+    } else {
+      open $fh, '<', $fn;
+    }
     defined(my $header = <$fh>)
       or do { warn "Can't read header from $fn\n"; next };
     $header =~ s/^\xef\xbb\xbf//; # Trim BOM
+    if ($o_unix and $header =~ /\r$/) {
+      warn "Input ends with CRLF!";
+    }
     my @header = split "\t", $header;
     my @watchCols = do {
       my %found;
