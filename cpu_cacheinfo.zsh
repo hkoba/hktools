@@ -3,6 +3,8 @@
 sysfs=/sys/devices/system/cpu
 cpu=cpu0
 
+# TODO: Detect HyperThreaded core topology and reflect it to shared-ness info.
+
 typeset -A cacheinfo
 function read_var_from {
     local from=$1 var=$2
