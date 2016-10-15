@@ -13,3 +13,4 @@
 *.O
 *rpmorig
 *rpmnew
+udev/hwdb.bin
