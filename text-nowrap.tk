@@ -12,6 +12,7 @@ snit::widget text-nowrap {
     component myText -inherit yes
 
     option -selection no
+    option -encoding utf-8
 
     constructor args {
 
@@ -89,7 +90,7 @@ if {![info level] && [info script] eq $::argv0} {
     
 	.win insert end [if {$::argv ne ""} {
 
-	    read_file [lindex $::argv 0]
+	    read_file [lindex $::argv 0] -encoding [.win cget -encoding]
 
 	} else {
 	    if {[.win cget -selection]
