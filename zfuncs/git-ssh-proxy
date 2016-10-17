@@ -5,12 +5,12 @@ emulate -L zsh
 setopt local_options extended_glob err_return
 
 local o_quiet o_help
-local usage="Usage: $0 [-h] [-q] HOST"
+local usage="Usage: $0 [-h] [-q] [-R] HOST"
 
-zparseopts -D -K q=o_quiet h=o_help
+zparseopts -D -K q=o_quiet h=o_help R=o_Rebuild
 
 if ((! ARGC)) || (($#o_help)); then
-    print $usage
+    print 1>&2 $usage
     return 1
 fi
 
@@ -30,17 +30,40 @@ local scriptFn=$tmpDir/git-ssh-$host
 local ctrlDir=$scriptFn.d
 local ssh_ctrl=$ctrlDir/ssh-%h%p
 
-if [[ ! -e $scriptFn ]]; then
-    (($#o_quiet)) || echo Creating proxy script $scriptFn
+if (($#o_Rebuild)) || [[ ! -e $scriptFn ]]; then
+    (($#o_quiet)) || echo 1>&2 Creating proxy script $scriptFn
 sed -e "s,@ORIG_HOST@,$host,g" -e "s,@SSH_CTRL@,$ssh_ctrl,g" > $scriptFn <<'EOF'
 #!/bin/zsh
-zparseopts -D -K p=o_port
+emulate -L zsh
+
+spec=(
+  p=o_port
+  x=o_nox
+  T=o_notty
+  X=o_withx
+  Y=o_withxauth
+
+  'o+:=o_opts'
+  'L:=o_Lforw'
+)
+zparseopts -D -K $spec
+opts=(
+$o_port
+$o_nox
+$o_notty
+$o_withx
+$o_withxauth
+
+$o_opts
+$o_Lforw
+)
+
 host=$1; shift
 orig_host=@ORIG_HOST@
 if [[ $host == $orig_host ]]; then
-  ssh -S @SSH_CTRL@ $o_port $host "$@"
+  ssh -S @SSH_CTRL@ $opts $host "$@"
 else
-  ssh -A -S @SSH_CTRL@ $orig_host ssh -q $o_port $host "$@"
+  ssh -A -S @SSH_CTRL@ $orig_host ssh -q $opts $host "$@"
 fi
 EOF
 fi
