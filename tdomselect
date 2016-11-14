@@ -4,7 +4,12 @@ package require tdom
 package require cmdline
 
 # Ex. To list up reused passwords:
-# tdomselect tmp/keepass.xml //entry password username url title|sort|uniq
+# tdomselect tmp/keepass.xml //entry list password username url title|sort|uniq
+
+# tdomselect foo.docx
+# tdomselect foo.docx //w:t
+# tdomselect foo.docx //w:t toXPath
+# tdomselect foo.docx //w:t 'n {list [$n toXPath] [$n asText]}'
 
 proc usage {{rc 1}} {
     set prog [file tail $::argv0] 
@@ -12,11 +17,16 @@ proc usage {{rc 1}} {
     exit $rc
 }
 
-proc read_enc {fn args} {
+proc open_chan {fn args} {
     set fh [open $fn]
     if {[llength $args]} {
 	fconfigure $fh {*}$args
     }
+    set fh
+}
+
+proc read_enc {fn args} {
+    set fh [open_chan $fn {*}$args]
     set data [read $fh]
     close $fh
     set data
@@ -28,65 +38,115 @@ catch {
     signal trap SIGPIPE exit
 }
 
-array set opts [cmdline::getoptions argv {
+set opts [cmdline::getoptions argv {
     {encoding.arg utf-8 "input file encoding"}
     {debug no "debug"}
-    {begin.arg {} "eval before loop"}
-    {end.arg {} "eval after loop"}
-    {m.arg {asText} "method which is applied to extract values from selected nodes"}
-    {e.arg {} "expression applied to selected node"}
-    {n no "No puts"}
 }]
 
-proc tdom_select {fn xpath args} {
-    uplevel #0 $::opts(begin)
-
-    set parse_opts {}
-    if {[regexp {\.html?$} $fn]} {
-	lappend parse_opts -html
-    }
-
-    dom parse {*}$parse_opts [read_enc $fn -encoding $::opts(encoding)] doc
-    $doc documentElement root
-    set found [$root selectNodes $xpath]
-
-    if {$::opts(e) ne ""} {
-	set cmdBody $::opts(e)
-    } elseif {[llength $args]} {
-	set cmdBody [string map [list @M@ $::opts(m) @C@ $args ] {
-	    set ls {}
-	    foreach c [list @C@] {
-		if {![regexp {^\./} $c]} {
-		    set c "./$c"
-		}
-		foreach sub [$node selectNodes $c] {
-		    lappend ls [$sub @M@]
-		}
-	    }
-	    set ls
-	}]
+proc tdom_open {fn opts} {
+    set ext [string tolower [file extension $fn]]
+    set opener tdom_open$ext
+    if {[llength [info commands $opener]]} {
+	$opener $fn $opts
     } else {
-	set cmdBody [string map [list @M@ $::opts(m)] {$node @M@}]
+	return [open_chan $fn -encoding [dict get $opts encoding]]
     }
+}
 
-    if {$::opts(debug)} {
-	puts stderr cmdBody=$cmdBody
+proc tdom_open.html {fn opts} {
+    list [open_chan $fn -encoding [dict get $opts encoding]] \
+	-html
+}
+
+proc tdom_open.docx {fn opts} {
+    open_chan [list | unzip -qc $fn word/document.xml] \
+	-encoding utf-8
+}
+
+proc tdom_open.odt {fn opts} {
+    open_chan [list | unzip -qc $fn content.xml] \
+	-encoding utf-8
+}
+
+proc tdom_file_apply {opts fn method nodeVar cmdBody {emitCmd puts} args} {
+    upvar 1 $nodeVar node
+
+    set fd_opts [tdom_open $fn $opts]
+    dom parse -channel {*}$fd_opts doc
+    close [lindex $fd_opts 0]
+
+    $doc documentElement root
+    set rc [catch {$root {*}$method} found]
+    if {$rc} {
+	puts stderr "dom selection error for '$method'\n $found"
+	exit 1
     }
 
     foreach node $found {
-	set res [apply [list node $cmdBody] $node]
-	if {!$::opts(n)} {
-	    puts [join $res \t]
+	set res [{*}$cmdBody $node]
+	if {$emitCmd ne ""} {
+	    {*}$emitCmd $res {*}$args
 	}
     }
-
-    uplevel #0 $::opts(end)
 
     set found
 }
 
-if {[llength $argv] < 2} {
+proc tdom_map.list {tags node} {
+    set ls {}
+    foreach c $tags {
+	if {![regexp {^\./} $c]} {
+	    set c "./$c"
+	}
+	foreach sub [$node selectNodes $c] {
+	    lappend ls [regsub {\s+} [$sub asText] { }]
+	}
+    }
+    join $ls \t
+}
+
+# returns [list $method $nodeVar $cmdBody $emitCmd ...]
+proc tdom_auto_command argList {
+    if {[llength $argList] == 1} {
+	lassign $argList xpath
+	list [list selectNodes $xpath] node \
+	    [list apply [list node {$node asText}]]
+    } else {
+	set rest [lassign $argList xpath method]
+
+	if {[llength $method] == 1} {
+	    lassign $method method
+	    set nodeVar node
+	} else {
+	    lassign $method nodeVar method
+	}
+
+	if {[llength [info commands [set cmdName tdom_map.$method]]]} {
+	    list [list selectNodes $xpath] $nodeVar [list $cmdName $rest]
+	} elseif {[regexp {\s} $method]} {
+	    list [list selectNodes $xpath] $nodeVar \
+		[list apply [list $nodeVar $method]]
+	} else {
+	    list [list selectNodes $xpath] node \
+		[list apply [list node "\$node $method"]]
+	}
+    }
+}
+
+if {![llength $argv]} {
     usage
 }
 
-exit [expr {[llength [tdom_select {*}$argv]] == 0}]
+set rest [lassign $argv fn]
+if {![llength $rest]} {
+    tdom_file_apply $opts $fn childNodes node [list apply {node {
+	$node toXPath
+    }}] puts
+} else {
+    set cmd [tdom_auto_command $rest]
+    if {[dict get $opts debug]} {
+	puts stderr cmd=$cmd
+    }
+    set found [tdom_file_apply $opts $fn {*}$cmd]
+    exit [expr {[llength $found] == 0}]
+}
