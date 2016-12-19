@@ -17,10 +17,10 @@ use Module::CPANfile;
     }
   }
   foreach my $cpanfile (@ARGV) {
-      my $req = Module::CPANfile->load($cpanfile)->prereq_specs;
-      foreach my $mod (map {map {sort keys %$_} @{$req->{$_}}{qw/requires recommends/}} qw(runtime test)) {
-         next if $ignored{$mod};
-         print "perl($mod)\n";
-      }
+    my $req = Module::CPANfile->load($cpanfile)->prereq_specs;
+    foreach my $mod (map {map {sort keys %$_} @{$req->{$_}}{qw/requires recommends/}} qw(runtime test)) {
+      next if $ignored{$mod};
+      print "perl($mod)\n";
+    }
   }
 }
