@@ -2,6 +2,7 @@
 use strict;
 use warnings FATAL => qw/all/;
 use 5.010;
+use Carp;
 
 #========================================
 use fields qw/o_table
@@ -9,6 +10,7 @@ use fields qw/o_table
               o_transaction
               o_help
               columns
+              encoder_dict
 
               enc_cache
              /;
@@ -22,6 +24,13 @@ sub MY () {__PACKAGE__}
                 type
                 is_text
                 encoded/;
+  package EncTabSpec;
+  use fields qw/tab_name
+                id_col
+                enc_col
+                enc_type
+                is_text
+               /;
 }
 
 use Scalar::Util qw/looks_like_number/;
@@ -48,6 +57,8 @@ Usage: $0 [-c] [--table=TAB] +COL +COL...  LTSV_FILE...
 ++COL          Like above, but with separate (encoding) table.
 ++COL=LOG
 ++COL=LOG:TYPE
+++COL=LOG:ENC_TABLE.TYPE
+++COL=LOG:ENC_TABLE.ENC_COL.TYPE
 EOF
 }
 
@@ -86,12 +97,15 @@ EOF
 
 sub as_create {
   (my MY $opts) = @_;
-  my (@ddl, @indices);
+  my (@ddl, @indices, %emitted);
   foreach my ColSpec $col (@{$opts->{columns}}) {
-    next unless $col->{encoded};
-    push @ddl, $opts->sql_create
-      ($col->{col_name}, "$col->{id_name} integer primary key"
-       , "$col->{col_name} text unique").";";
+    my EncTabSpec $enc = $col->{encoded}
+      or next;
+    if (not $emitted{$enc->{tab_name}}++) {
+      push @ddl, $opts->sql_create
+        ($enc->{tab_name}, "$enc->{id_col} integer primary key"
+         , "$enc->{enc_col} $enc->{enc_type} unique").";";
+    }
     # XXX:
     push @indices
       , "CREATE INDEX if not exists $opts->{o_table}_$col->{id_name}"
@@ -108,16 +122,36 @@ sub as_create {
   } @{$opts->{columns}})."\n;";
 
   # XXX: column name quoting
-  push @ddl, "CREATE VIEW if not exists raw_$opts->{o_table}"
-    . " AS SELECT $opts->{o_table}.rowid as 'rowid', * FROM "
-    .join(" LEFT JOIN ", $opts->{o_table}, map {
-      my ColSpec $col = $_;
-      if ($col->{encoded}) {
-        "$col->{col_name} using ($col->{id_name})"
-      } else {
-        ();
-      }
-    } @{$opts->{columns}}).";";
+  {
+    my @explicit_cols;
+    my @joins = map {
+        my ColSpec $col = $_;
+        if (my EncTabSpec $enc = $col->{encoded}) {
+          do {
+            if ($enc->{tab_name} eq $col->{col_name}) {
+              $col->{col_name};
+            } else {
+              "$enc->{tab_name} $col->{col_name}";
+            }
+          }.do {
+            if ($enc->{id_col} eq $col->{id_name}) {
+              " using ($col->{id_name})";
+            } else {
+              push @explicit_cols, "$col->{col_name}.$enc->{enc_col} as $col->{col_name}";
+              " ON $opts->{o_table}.$col->{id_name}"
+                . " = $col->{col_name}.$enc->{id_col}";
+            }
+          };
+        } else {
+          ();
+        }
+      } @{$opts->{columns}};
+    push @ddl, "CREATE VIEW if not exists raw_$opts->{o_table}"
+      . " AS SELECT $opts->{o_table}.rowid as 'rowid',"
+      . join("", map(" $_,", @explicit_cols))
+      . " * FROM "
+      .join(" LEFT JOIN ", $opts->{o_table}, @joins).";";
+  }
 
   push @ddl, "CREATE VIEW if not exists v_$opts->{o_table}"
     . " AS SELECT rowid, ".join(", ", map {
@@ -156,14 +190,14 @@ sub sql_values {
     my ColSpec $col = $_;
     if (not defined (my $value = $log->{$col->{ltsv_name}})) {
       'NULL'
-    } elsif ($col->{encoded}) {
-      unless ($opts->{enc_cache}{$col->{col_name}}{$value}++) {
-        push @encoder, $opts->sql_encode($col, $value);
+    } elsif (my EncTabSpec $enc = $col->{encoded}) {
+      unless ($opts->{enc_cache}{$enc->{tab_name}}{$value}++) {
+        push @encoder, $opts->sql_encode($enc, $value);
       }
       # ensure encoded
-      $opts->sql_select_encoded($col, $value)
+      $opts->sql_select_encoded($enc, $value)
     } else {
-      $opts->sql_quote_col($col, $value)
+      $opts->sql_quote($value, $col->{is_text})
     }
   } @coldefs).")";
 
@@ -171,26 +205,30 @@ sub sql_values {
 }
 
 sub sql_encode {
-  (my MY $opts, my ColSpec $col, my ($value)) = @_;
-  "INSERT or IGNORE into ".$opts->sql_insert($col->{col_name}, $col->{col_name})
-    . " VALUES(".$opts->sql_quote_col($col, $value).");\n";
+  (my MY $opts, my EncTabSpec $enc, my ($value)) = @_;
+  "INSERT or IGNORE into ".$opts->sql_insert($enc->{tab_name}, $enc->{enc_col})
+    . " VALUES(".$opts->sql_quote_col($enc, $value).");\n";
 }
 
 sub sql_select_encoded {
-  (my MY $opts, my ColSpec $col, my ($value)) = @_;
-  "(SELECT $col->{col_name}_id from $col->{col_name} where $col->{col_name} = "
-    .$opts->sql_quote_col($col, $value).")";
+  (my MY $opts, my EncTabSpec $enc, my ($value)) = @_;
+  "(SELECT $enc->{id_col} from $enc->{tab_name} where $enc->{enc_col} = "
+    .$opts->sql_quote_col($enc, $value).")";
 }
 
-sub sql_quote_col {
-  (my MY $opts, my ColSpec $col, my $str) = @_;
-  if (not $col->{is_text}
-      and looks_like_number($str)) {
+sub sql_quote {
+  (my MY $opts, my ($str, $is_text)) = @_;
+  if (not $is_text and looks_like_number($str)) {
     $str
   } else {
     $str =~ s{\'}{''}g;
     qq!'$str'!;
   }
+}
+
+sub sql_quote_col {
+  (my MY $opts, my ColSpec $col, my $value) = @_;
+  $opts->sql_quote($value, $col->{is_text});
 }
 
 sub column_names {
@@ -208,8 +246,18 @@ sub accept_column_option {
   $col->{ltsv_name} = $match->{ltsvname} || $col->{col_name};
   $col->{type} = $match->{type} // 'text';
   $col->{is_text} = $col->{type} eq 'text';
-  if ($col->{encoded} = $match->{enc}) {
+  if ($match->{enc} || $match->{enc_table}) {
     $col->{id_name} = "$col->{col_name}_id";
+
+    my $enc_table = $match->{enc_table} || $col->{col_name};
+    my EncTabSpec $tab = $opts->{encoder_dict}{$enc_table} // +{};
+    # XXX: double creation
+    $col->{encoded} = $tab;
+    $tab->{tab_name} = $enc_table;
+    $tab->{id_col} = "${enc_table}_id";
+    $tab->{enc_col} = $match->{enc_col} || $enc_table;
+    $tab->{enc_type} = $match->{enc_type} || 'text';
+    $tab->{is_text} = $tab->{enc_type} eq 'text';
   }
   $col;
 }
@@ -225,7 +273,15 @@ sub parse_argv {
               (?:=(?<ltsvname>[^=:]*)
                 (?:=(?<type>[^=:]+))?
               )?
-              (?::(?<type>[^:]+))?
+              (?::
+                (?:(?<enc_table>\w+)
+                  \.
+                  (?:
+                    (?<enc_col>\w+)
+                    \.
+                  )?
+                )?
+                (?<type>[^:]+))?
            }x) {
     if (defined $+{key}) {
       $opts->accept_column_option(\%+);
