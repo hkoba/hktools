@@ -5,23 +5,23 @@ use 5.010;
 
 #========================================
 use fields qw/o_table
-	      o_create
-	      o_transaction
-	      o_help
-	      columns
+              o_create
+              o_transaction
+              o_help
+              columns
 
-	      enc_cache
-	     /;
+              enc_cache
+             /;
 sub MY () {__PACKAGE__}
 
 {
   package ColSpec;
   use fields qw/ltsv_name
-		col_name
-		id_name
-		type
-		is_text
-		encoded/;
+                col_name
+                id_name
+                type
+                is_text
+                encoded/;
 }
 
 use Scalar::Util qw/looks_like_number/;
@@ -95,7 +95,7 @@ sub as_create {
     # XXX:
     push @indices
       , "CREATE INDEX if not exists $opts->{o_table}_$col->{id_name}"
-	. " on $opts->{o_table}($col->{id_name});";
+        . " on $opts->{o_table}($col->{id_name});";
   }
 
   push @ddl, $opts->sql_create($opts->{o_table}, map {
@@ -113,9 +113,9 @@ sub as_create {
     .join(" LEFT JOIN ", $opts->{o_table}, map {
       my ColSpec $col = $_;
       if ($col->{encoded}) {
-	"$col->{col_name} using ($col->{id_name})"
+        "$col->{col_name} using ($col->{id_name})"
       } else {
-	();
+        ();
       }
     } @{$opts->{columns}}).";";
 
@@ -158,7 +158,7 @@ sub sql_values {
       'NULL'
     } elsif ($col->{encoded}) {
       unless ($opts->{enc_cache}{$col->{col_name}}{$value}++) {
-	push @encoder, $opts->sql_encode($col, $value);
+        push @encoder, $opts->sql_encode($col, $value);
       }
       # ensure encoded
       $opts->sql_select_encoded($col, $value)
@@ -219,14 +219,14 @@ sub accept_column_option {
 sub parse_argv {
   (my MY $opts, my ($argv, %opt_alias)) = @_;
   while (@$argv and $argv->[0]
-	 =~ m{^--?(?<opt>\w+)(?:=(?<val>.*))?
-	    |^\+(?<enc>\+)?
-	      (?<key>[^=:\s]+)
-	      (?:=(?<ltsvname>[^=:]*)
-		(?:=(?<type>[^=:]+))?
-	      )?
-	      (?::(?<type>[^:]+))?
-	   }x) {
+         =~ m{^--?(?<opt>\w+)(?:=(?<val>.*))?
+            |^\+(?<enc>\+)?
+              (?<key>[^=:\s]+)
+              (?:=(?<ltsvname>[^=:]*)
+                (?:=(?<type>[^=:]+))?
+              )?
+              (?::(?<type>[^:]+))?
+           }x) {
     if (defined $+{key}) {
       $opts->accept_column_option(\%+);
     } elsif (defined $+{opt}) {
