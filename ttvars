@@ -2,6 +2,10 @@
 
 # See: https://github.com/hkoba/mytools/wiki/ttvars
 
+emulate -L zsh
+
+setopt extended_glob
+
 scriptfn=$0
 bindir=$(cd $scriptfn:h; print $PWD)
 
@@ -16,6 +20,10 @@ Example:
 ${scriptfn:t} y,n yes,no
 
 ${scriptfn:t} 'x <= 3, x > 3' 'y <= 5, y > 5' 'z <= 0, z > 0'
+
+Or even simply:
+
+${scriptfn:t} x y z
 
 EOF
 }
@@ -34,6 +42,17 @@ function list {
     print -- "[${(j/,/)argv}]"
 }
 
+function literal2boolpairs {
+    local exp
+    for exp in ${argv//<\=/\=<}; do
+        if [[ $exp == [_[:alpha:]][_[:alnum:]]# ]]; then
+            print "[$exp=1, $exp=0]"
+        else
+            print -R "[$exp]"
+        fi
+    done
+}
+
 function cmd_gprolog {
     # To suppress compilation messages from consult, I use redirection here.
     # To use this, /dev/fd/3 should be available
@@ -41,7 +60,7 @@ function cmd_gprolog {
     [[ -w /dev/fd/1 ]] || die /dev/fd/N is not available on your system.
 
     local script input
-    input=$(list \[${^argv//<\=/\=<}\])
+    input=$(list $argv)
     script=(
 	"consult('$solver')"
 	"open('/dev/fd/3',write,Out)"
@@ -54,7 +73,7 @@ function cmd_gprolog {
 
 function cmd_swipl {
     local script input
-    input=$(list \[${^argv//<\=/\=<}\])
+    input=$(list $argv)
     script=(
 	"tt($input, write_tsv)"
     )
@@ -74,4 +93,4 @@ zparseopts -D -K h=o_help v=o_verbose x=o_xtrace || usage
 
 [[ -n $o_xtrace ]] && set $o_xtrace
 
-cmd_$prolog "$@"
+cmd_$prolog ${(f)"$(literal2boolpairs "$@")"}
