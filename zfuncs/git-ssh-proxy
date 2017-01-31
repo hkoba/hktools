@@ -1,5 +1,7 @@
 #autoload -*- mode: shell-script; sh-shell: zsh; coding: utf-8 -*-
 
+function git-ssh-proxy {
+
 emulate -L zsh
 
 setopt local_options extended_glob err_return
@@ -79,3 +81,5 @@ zpty -b GIT_SSH-$host ssh -A -M -o ControlPath=$ssh_ctrl $host /bin/sh
 export GIT_SSH=$scriptFn
 
 (($#o_quiet)) || echo GIT_SSH=$scriptFn
+
+}
