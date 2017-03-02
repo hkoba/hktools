@@ -16,6 +16,11 @@ EOF
 
 #========================================
 
+o_xtrace=()
+zparseopts -D -K x=o_xtrace
+
+#========================================
+
 ((ARGC == 2)) || usage
 
 askpass=/usr/libexec/openssh/gnome-ssh-askpass
@@ -32,12 +37,13 @@ cmds=(
     "install -d -o $user -g $user -m 2700 ${authFn:h}"
     "tee -a $authFn"
     "chown $user:$user $authFn"
+    "chmod 0600 $authFn"
 )
 
 ssh_cmd=(
     env SUDO_ASKPASS=$askpass
     sudo
-    sh -c "${(qqj/&&/)cmds}"
+    sh $o_xtrace -c "${(qqj/&&/)cmds}"
 )
 
 # set -x
