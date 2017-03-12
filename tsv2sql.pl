@@ -69,6 +69,9 @@ EOF
 {
   my MY $opts = fields::new(MY);
   $opts->parse_argv(\@ARGV, c => 'create', h => 'help');
+
+  usage() if $opts->{o_help};
+
   $opts->{o_table} //= 't';
   $opts->{o_transaction} //= 1;
 
@@ -79,6 +82,8 @@ EOF
   $header =~ s/^\xef\xbb\xbf//; # Trim BOM
 
   $opts->read_header(split "\t", $header);
+
+  print $opts->as_create if $opts->{o_create};
 
   while (<>) {
     chomp;
@@ -110,6 +115,77 @@ sub read_header {
     @dbcols = @tsv_collist;
   }
 }
+
+#========================================
+
+sub as_create {
+  (my MY $opts) = @_;
+  my (@ddl, @indices, %emitted);
+  foreach my ColSpec $col (@{$opts->{columns}}) {
+    my EncTabSpec $enc = $col->{encoded}
+      or next;
+    if (not $emitted{$enc->{tab_name}}++) {
+      push @ddl, $opts->sql_create
+        ($enc->{tab_name}, "$enc->{id_col} integer primary key"
+         , "$enc->{enc_col} $enc->{enc_type} unique").";";
+    }
+    # XXX:
+    push @indices
+      , "CREATE INDEX if not exists $opts->{o_table}_$col->{id_name}"
+        . " on $opts->{o_table}($col->{id_name});";
+  }
+
+  push @ddl, $opts->sql_create($opts->{o_table}, map {
+    my ColSpec $col = $_;
+    if ($col->{encoded}) {
+      "$col->{id_name} integer";
+    } else {
+      "$col->{db_col} $col->{type}";
+    }
+  } @{$opts->{columns}})."\n;";
+
+  # XXX: column name quoting
+  {
+    my @explicit_cols;
+    my @joins = map {
+        my ColSpec $col = $_;
+        if (my EncTabSpec $enc = $col->{encoded}) {
+          do {
+            if ($enc->{tab_name} eq $col->{db_col}) {
+              $col->{db_col};
+            } else {
+              "$enc->{tab_name} $col->{db_col}";
+            }
+          }.do {
+            if ($enc->{id_col} eq $col->{id_name}) {
+              " using ($col->{id_name})";
+            } else {
+              push @explicit_cols, "$col->{db_col}.$enc->{enc_col} as $col->{db_col}";
+              " ON $opts->{o_table}.$col->{id_name}"
+                . " = $col->{db_col}.$enc->{id_col}";
+            }
+          };
+        } else {
+          ();
+        }
+      } @{$opts->{columns}};
+    push @ddl, "CREATE VIEW if not exists raw_$opts->{o_table}"
+      . " AS SELECT $opts->{o_table}.rowid as 'rowid',"
+      . join("", map(" $_,", @explicit_cols))
+      . " * FROM "
+      .join(" LEFT JOIN ", $opts->{o_table}, @joins).";";
+  }
+
+  push @ddl, "CREATE VIEW if not exists v_$opts->{o_table}"
+    . " AS SELECT rowid, ".join(", ", map {
+      my ColSpec $col = $_;
+      $col->{db_col};
+  } @{$opts->{columns}})." FROM raw_$opts->{o_table};";
+
+  join("\n", @ddl, @indices)."\n";
+}
+
+#========================================
 
 sub as_insert {
   (my MY $opts, my $log) = @_;
@@ -215,7 +291,7 @@ sub accept_column_option {
     $tab->{tab_name} = $enc_table;
     $tab->{id_col} = "${enc_table}_id";
     $tab->{enc_col} = $match->{enc_col} || $enc_table;
-    $tab->{enc_type} = $match->{enc_type} || 'text';
+    $tab->{enc_type} = $match->{type} || 'text';
     $tab->{is_text} = $tab->{enc_type} eq 'text';
   }
   $col;
@@ -240,7 +316,7 @@ sub parse_argv {
                     \.
                   )?
                 )?
-                (?<enc_type>[^:]+))?
+                (?<type>[^:]+))?
            }x) {
     if (defined $+{key}) {
       $opts->accept_column_option(\%+);
