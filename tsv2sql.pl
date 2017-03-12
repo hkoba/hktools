@@ -117,7 +117,7 @@ sub read_header {
 	or croak "Can't find requested column $colspec->{tsv_name}";
       $colspec->{tsv_colno} = $colno;
       push @watchCols, $colno;
-      push @dbcols, $colspec->{db_col};
+      push @dbcols, $colspec->{id_name} // $colspec->{db_col};
     }
   } else {
     ...; # not yet supported.
