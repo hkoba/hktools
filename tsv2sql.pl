@@ -3,6 +3,8 @@ use strict;
 use warnings FATAL => qw/all/;
 use Carp;
 
+use File::Basename;
+
 #========================================
 use fields qw/o_table
               o_create
@@ -25,6 +27,7 @@ sub MY () {__PACKAGE__}
                 id_name
                 type
                 is_text
+                unique
                 encoded/;
   package EncTabSpec;
   use fields qw/tab_name
@@ -72,7 +75,13 @@ EOF
 
   usage() if $opts->{o_help};
 
-  $opts->{o_table} //= 't';
+  $opts->{o_table} //= do {
+    if (@ARGV) {
+      rootname(basename($ARGV[0]));
+    } else {
+      't';
+    }
+  };
   $opts->{o_transaction} //= 1;
 
   print "BEGIN;\n" if $opts->{o_transaction};
@@ -140,7 +149,7 @@ sub as_create {
     if ($col->{encoded}) {
       "$col->{id_name} integer";
     } else {
-      "$col->{db_col} $col->{type}";
+      "$col->{db_col} @{$col->{type}}";
     }
   } @{$opts->{columns}})."\n;";
 
@@ -231,6 +240,8 @@ sub sql_values {
       }
       # ensure encoded
       $opts->sql_select_encoded($enc, $value)
+    } elsif ($col->{is_text} and $col->{unique} and $value eq '') {
+      'NULL';
     } else {
       $opts->sql_quote($value, $col->{is_text})
     }
@@ -279,8 +290,10 @@ sub accept_column_option {
   push @{$opts->{columns}}, my ColSpec $col = fields::new('ColSpec');
   $col->{db_col} = $match->{key};
   $col->{tsv_name} = $match->{tsvname} || $col->{db_col};
-  $col->{type} = $match->{type} // 'text';
-  $col->{is_text} = $col->{type} eq 'text';
+  $col->{type} = [split ":", $match->{type} // ""];
+  $col->{type}[0] //= 'text';
+  $col->{is_text} = $col->{type}[0] eq 'text';
+  $col->{unique} = 1 if grep {$_ eq 'unique'} @{$col->{type}};
   if ($match->{enc} || $match->{enc_table}) {
     $col->{id_name} = "$col->{db_col}_id";
 
@@ -291,8 +304,8 @@ sub accept_column_option {
     $tab->{tab_name} = $enc_table;
     $tab->{id_col} = "${enc_table}_id";
     $tab->{enc_col} = $match->{enc_col} || $enc_table;
-    $tab->{enc_type} = $match->{type} || 'text';
-    $tab->{is_text} = $tab->{enc_type} eq 'text';
+    $tab->{enc_type} = $col->{type}[0];
+    $tab->{is_text} = $col->{is_text};
   }
   $col;
 }
@@ -316,7 +329,7 @@ sub parse_argv {
                     \.
                   )?
                 )?
-                (?<type>[^:]+))?
+                (?<type>[^.:].*))?
            }x) {
     if (defined $+{key}) {
       $opts->accept_column_option(\%+);
@@ -329,4 +342,10 @@ sub parse_argv {
     shift @$argv;
   }
   $opts;
+}
+
+sub rootname {
+  my ($fn) = @_;
+  $fn =~ s/\.[^\.]+$//;
+  $fn;
 }
