@@ -8,6 +8,9 @@ snit::type vdbeanalyzer {
     option -file
     component myDB
 
+    option -debug no
+    option -mode ""
+
     method DB {} {
 	if {$myDB eq ""} {
 	    sqlite3 [set myDB $self.db] $options(-file)
@@ -197,13 +200,83 @@ Null
 	    select type, name from sqlite_master where rootpage = $num
 	}
     }
+    
+    method attach {dbFile args} {
+        foreach dbFile [list $dbFile {*}$args] {
+            set dbName [file rootname [file tail $dbFile]]
+            if {$options(-debug)} {
+                puts "Attaching $dbFile as $dbName"
+            }
+            [$self DB] eval [format {attach $dbFile as %s} $dbName]
+        }
+    }
+    
+    method query-plan sql {
+	set db [$self DB]
+        puts [join [list selectid order from detail] \t]
+	$db eval "explain query plan $sql" {
+            puts [join [list $selectid $order $from $detail] \t]
+        }
+    }
+
+    method raw-explain sql {
+	set db [$self DB]
+        puts [join [list addr opcode p1 p2 p3 p4 p5 comment] \t]
+	$db eval "explain $sql" {
+            puts [join [list $addr $opcode $p1 $p2 $p3 $p4 $p5 $comment] \t]
+        }
+    }
+}
+
+namespace eval vdbeanalyzer {
+    proc posix-getopt {argVar {dict ""} {shortcut ""}} {
+	upvar 1 $argVar args
+	set result {}
+	while {[llength $args]} {
+	    if {![regexp ^- [lindex $args 0]]} break
+	    set args [lassign $args opt]
+	    if {$opt eq "--"} break
+	    if {[regexp {^-(-no)?(-\w[\w\-]*)(=(.*))?} $opt \
+		     -> no name eq value]} {
+		if {$no ne ""} {
+		    set value no
+		} elseif {$eq eq ""} {
+		    set value [expr {1}]
+		}
+	    } elseif {[dict exists $shortcut $opt]} {
+		set name [dict get $shortcut $opt]
+		set value [expr {1}]
+	    } else {
+		error "Can't parse option! $opt"
+	    }
+	    lappend result $name $value
+	    if {[dict exists $dict $name]} {
+		dict unset dict $name
+	    }
+	}
+
+	list {*}$dict {*}$result
+    }
 }
 
 if {![info level] && [info exists ::argv0] && $::argv0 eq [info script]} {
-    lassign $::argv file sql
+    set opts [vdbeanalyzer::posix-getopt ::argv]
+    if {[llength $::argv] < 2} {
+        error "Usage: [info script] DBFILE ?DBFILE..? SQL"
+    }
+    set file [lindex $::argv 0]
+    set sql [lindex $::argv end]
+    set attachedFiles [lrange $::argv 1 end-1]
     if {![file readable $file]} {
 	error "Can't find dbfile $file"
     }
-    vdbeanalyzer obj -file $file
-    obj explain $sql
+    vdbeanalyzer obj {*}$opts -file $file
+    if {[llength $attachedFiles]} {
+        obj attach {*}$attachedFiles
+    }
+    if {[set mode [obj cget -mode]] ne ""} {
+        obj $mode $sql
+    } else {
+        obj explain $sql
+    }
 }
