@@ -9,7 +9,7 @@ require charnames;
 while (<>) {
   chomp;
   foreach my $c (split //) {
-    if ($c =~ /^\s$/) {
+    if ($c =~ /^[\ \t\n]$/) {
       print "\n"; next;
     }
     printf "%s\t\\x{%x}\t%s\n", $c, ord($c), charnames::viacode(ord($c));
