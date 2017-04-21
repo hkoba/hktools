@@ -36,11 +36,11 @@ xbDir=$binDir:h
 
 function xb_perl {
    local spec=$1 dn
-   if [[ -x $spec && $spec:t == perl && $spec:h:t == bin && -d $spec:h:t/lib ]]; then
+   if [[ -x $spec && $spec:t == perl && $spec:h:t == bin && -d $spec:h:h/lib/perl5 ]]; then
 	print $spec
-   elif [[ -d $spec && -x $spec/bin/perl && -d $spec/lib ]]; then
+   elif [[ -d $spec && -x $spec/bin/perl && -d $spec/lib/perl5 ]]; then
 	print $spec:a/bin/perl
-   elif dn=$xbDir/perl-$spec; [[ -d $dn && -x $dn/bin/perl && -d $dn/lib ]]; then
+   elif dn=$xbDir/perl-$spec; [[ -d $dn && -x $dn/bin/perl && -d $dn/lib/perl5 ]]; then
 	print $dn/bin/perl
    else
       die "Can't find acutal perl path for $spec"
