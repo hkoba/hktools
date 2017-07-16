@@ -18,3 +18,6 @@ x rsync -Cavz $minDotsDir/ $destHost:$minDotsDir:t
 
 echo "#" Setting up mindots
 x ssh -t $destHost $minDotsDir/setup.zsh
+
+echo "#" Run chsh
+x ssh -t $destHost chsh
