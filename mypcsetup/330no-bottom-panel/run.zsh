@@ -7,4 +7,5 @@ set -e
 
 zparseopts -D -K n=o_dryrun
 
-x gsettings set org.mate.panel toplevel-id-list "['top-panel']"
+x gsettings set org.mate.panel toplevel-id-list "['top']"
+# x gsettings reset org.mate.panel toplevel-id-list
