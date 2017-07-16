@@ -1,0 +1,8 @@
+git
+
+zsh
+
+# For chsh
+util-linux-user
+
+openssh-askpass
