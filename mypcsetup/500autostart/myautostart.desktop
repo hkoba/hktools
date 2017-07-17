@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Exec=myautostart.zsh
+Hidden=false
+X-GNOME-Autostart-enabled=true
+Name[ja_JP]=My AutoStart
+Name=My AutoStart
+Comment[ja_JP]=
+Comment=
