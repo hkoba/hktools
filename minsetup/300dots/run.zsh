@@ -9,15 +9,8 @@ zparseopts -D -K n=o_dryrun
 
 destHost=$1; shift
 
-mindotsDir=$toolRootDir:h/mindots
-
-[[ -d $minDotsDir ]] || die "Can't find mindots"
-
-echo "#" Copying $minDotsDir/ to $destHost
-x rsync -Cavz $minDotsDir/ $destHost:$minDotsDir:t
-
 echo "#" Setting up mindots
-x ssh -t $destHost $minDotsDir/setup.zsh
+x ssh -t $destHost mindots/setup.zsh
 
 echo "#" Run chsh
 x ssh -t $destHost chsh
