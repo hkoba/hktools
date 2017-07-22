@@ -9,11 +9,10 @@ zparseopts -D -K n=o_dryrun
 
 destHost=$1; shift
 
-echo "#" Copying $etcGitDir/ to $destHost
-x rsync -Cavz $etcGitDir/ $destHost:$etcGitDir:t
+etcGitDir=${toolRootDir##$toolRootDir:h/}/sysadm/etcgit
 
 echo "#" Installing /root/.zshenv "(for sudo GIT_AUTHOR_NAME)"
-x ssh -t $destHost sudo cp -vu $etcGitDir:t/root.zshenv /root/.zshenv
+x ssh -t $destHost sudo cp -vu $etcGitDir/root.zshenv /root/.zshenv
 
 echo "#" Setting up etcgit
-x ssh -t $destHost sudo $etcGitDir:t/setup.zsh -c
+x ssh -t $destHost sudo $etcGitDir/setup.zsh -c
