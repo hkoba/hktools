@@ -21,6 +21,6 @@ for r in $repos; do
     rsync+=($r)
 done
 
-x rsync -Cavz $rsync $destHost:
+x rsync -az $rsync $destHost:
 
 echo DONE
