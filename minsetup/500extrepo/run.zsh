@@ -12,5 +12,5 @@ fi
 
 destHost=$1; shift
 
-$toolRootDir/sysadm/yum-repos.zsh | 
+$toolRootDir/sysadm/yum-repos.zsh $(< $thisDir/ignored.lst) | 
 ssh $destHost $sudo_auth sudo -A tar -xv -C /etc/yum.repos.d -f -
