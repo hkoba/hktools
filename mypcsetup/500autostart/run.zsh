@@ -9,7 +9,7 @@ zparseopts -D -K n=o_dryrun
 
 destDir=~/bin
 [[ -d $destDir ]] || x mkdir -p $destDir
-x cp -a $thisDir/myautostart.{zsh,d} $destDir
+x ln -vnsfr $thisDir/myautostart.{zsh,d} $destDir
 
 configDir=~/.config/autostart 
 [[ -d $configDir ]] || x mkdir -p $configDir

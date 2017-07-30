@@ -7,7 +7,7 @@ set -e
 
 zparseopts -D -K n=o_dryrun
 
-if ! fuser -v =ibus-daemon >& /dev/null; then
-    x ibus-daemon -vd --xim
-fi
+fn=$thisDir/emacs.xresources
+
+x xrdb $fn
 

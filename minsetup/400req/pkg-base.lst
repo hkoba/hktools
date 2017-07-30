@@ -1,6 +1,6 @@
 git
 zsh
-perl
+perl-core
 
 tcl
 tcllib
@@ -11,6 +11,9 @@ bwidget
 tklib
 
 nkf
+mecab
+mecab-ipadic
+mecab-jumandic
 
 ed
 
@@ -46,3 +49,7 @@ openssh-askpass
 
 # For chsh
 util-linux-user
+
+# For openssl
+openssl-devel
+tig

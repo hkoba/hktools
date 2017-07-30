@@ -7,7 +7,7 @@ set -e
 
 zparseopts -D -K n=o_dryrun
 
-dev='SynPS/2 Synaptics TouchPad'
+dev='Logitech Rechargeable Touchpad T650'
 function devset {
     x xinput set-prop $dev "$@"
 }

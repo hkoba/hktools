@@ -1,1 +1,6 @@
 @mate-desktop
+xorg-x11-drv-synaptics-legacy
+ibus-mozc
+emacs
+
+wine

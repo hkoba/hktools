@@ -13,6 +13,7 @@ repos=(
     $toolRootDir
     $toolRootDir:h/mindots
     $toolRootDir:h/products
+    $toolRootDir:h/otherpkgs
 )
 
 rsync=()
