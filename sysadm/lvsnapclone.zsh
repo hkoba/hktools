@@ -169,12 +169,27 @@ function remove_snaplist {
     fi
 }
 
+#
+# Thinpool is not supported.
+#
+function is_thinpool {
+    local src=$1 attr
+
+    lvs -o lv_attr --noheadings $src | read attr
+
+    [[ $attr == t* ]]
+}
+
 {
     trap remove_snaplist INT
 
     # 1st. Prepare all destinations and determine snapshot path for them.
     # XXX: Total capacity checking for destination(s), before actual lvcreate.
     for s d in $*; do
+	if is_thinpool $s; then
+	    continue
+	fi
+
 	size_gig $s
 
 	# XXX: snapshot size option.
