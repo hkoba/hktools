@@ -8,6 +8,10 @@ source $thisDir:h/config.env
 
 zparseopts -D -K n=o_dryrun
 
+[[ -x /usr/bin/fstrim ]] || x dnf install /usr/bin/fstrim
+
+x sudo systemctl enable --now fstrim.timer
+
 x sudo perl -i -pe 's/^(\s*issue_discards) = \d+/$1 = 1/' /etc/lvm/lvm.conf
 
 x sudo perl -i -pe 's/^(GRUB_CMDLINE_LINUX=.*?) (rd.luks.uuid=)/$1 luks.options=discard rd.luks.options=discard $2/' /etc/default/grub

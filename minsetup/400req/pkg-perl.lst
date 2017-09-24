@@ -2,3 +2,7 @@ perl(Crypt::OpenSSL::RSA)
 perl(Digest::SHA1)
 perl(DBD::SQLite)
 perl(FCGI::ProcManager)
+
+/usr/include/readline/readline.h
+
+/usr/lib64/pkgconfig/ncurses.pc
