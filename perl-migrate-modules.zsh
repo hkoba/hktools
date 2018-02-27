@@ -8,7 +8,7 @@ progFile=$0
 function usage {
   ((! ARGC)) || print 1>&2 $*
   cat 1>&2 <<EOF
-Usage: ${progFile:t} [--SUBCOMMAND] ARGS...
+Usage: ${progFile:t} [-p] [-S] [--SUBCOMMAND] ARGS...
 
 Available Subcommands are:
 
@@ -17,6 +17,10 @@ Available Subcommands are:
 --list-modules-from PERL
 
 --install-modules-to PERL  MODULE_NAMES...
+
+Options:
+-p     use cpm instead of cpanm
+-S     use sudo
 EOF
   exit 1
 }
