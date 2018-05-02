@@ -16,8 +16,9 @@ EOF
 
 #========================================
 
-o_xtrace=() o_sh=() o_install_prereqs=()
-zparseopts -D -K x=o_xtrace P=o_install_prereqs s:=o_sh
+o_xtrace=() o_sh=() o_install_prereqs=() o_admin=() o_group=()
+zparseopts -D -K x=o_xtrace P=o_install_prereqs A=o_admin s:=o_sh \
+           G:=o_group
 
 if (($#o_xtrace)); then
   set -x
@@ -39,8 +40,19 @@ authFn=/home/$user/.ssh/authorized_keys
 
 cmds=(
     "useradd $o_sh $user"
+)
+if (($#o_admin)); then
+cmds+=(
     "usermod -aG adm $user"
     "usermod -aG wheel $user"
+)
+fi
+if (($#o_group)); then
+    for g in ${(s/,/)o_group[2]}; do
+        cmds+=("usermod -aG $g $user")
+    done
+fi
+cmds+=(
     "install -d -o $user -g $user -m 2700 ${authFn:h}"
     "tee -a $authFn"
     "chown $user:$user $authFn"
