@@ -26,9 +26,9 @@ sub prob_double_encoded {
 
   return 0 unless length $bin;
 
-  # 二度 utf8 encode したテキストには↓このパターンが頻出するので
+  # I observed following pattern in doubly encoded utf8 text.
   my $wrongCnt = $bin =~ m{\xc2[\x80-\xa0]}g;
-  return 0 unless $wrongCnt;
+  return 0 unless $wrongCnt; # really?
 
   require Encode;
   my $ulen = length(Encode::decode(utf8 => $bin));
