@@ -88,3 +88,16 @@ for pkg in $rpm_ensure_removed; do
    print "$pkg should be removed"
    rpm -e $pkg
 done
+
+# [6] systemd services which should be enabled and running
+
+for svc in $systemd_services; do
+    if ! systemctl --quiet is-enabled $svc; then
+	print "$svc should be enabled"
+	systemctl enable $svc || true
+    fi
+    if ! systemctl --quiet is-active $svc; then
+	print "$svc should be active"
+	systemctl start $svc || true
+    fi
+done
