@@ -32,8 +32,15 @@ for p in dnf yum; do
     fi
 done
 
-if [[ -n $yum_or_dnf ]] && (($#required_packages)); then
-    $yum_or_dnf --cacheonly --quiet install -y $required_packages || true
+if [[ -n $yum_or_dnf ]]; then
+    missing=()
+    for pkg in $required_packages; do
+       rpm -q $pkg >& /dev/null && continue
+       missing+=($pkg)
+    done
+    if (($#missing)); then
+        $yum_or_dnf install -y $missing || true
+    fi
 fi
 
 # [1] GIT difference notification
