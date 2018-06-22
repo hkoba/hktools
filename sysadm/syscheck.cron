@@ -20,6 +20,20 @@ fi
 set -e
 source $config
 
+# [0] Install packages
+
+yum_or_dnf=""
+for p in dnf yum; do
+    if (($+commands[$p])); then
+        yum_or_dnf=$p
+        break;
+    fi
+done
+
+if [[ -n $yum_or_dnf ]] && (($#required_packages)); then
+    $yum_or_dnf --cacheonly --quiet install -y $required_packages || true
+fi
+
 # [1] GIT difference notification
 
 if ((! $+gitwatches && $+svkwatches)); then
