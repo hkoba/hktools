@@ -20,18 +20,17 @@ fi
 set -e
 source $config
 
-# [1] SVK difference notification
+# [1] GIT difference notification
 
-export SVKROOT=/root/.svk
-for d in $svkwatches; do
+if ((! $+gitwatches && $+svkwatches)); then
+    gitwatches=($svkwatches)
+fi
+
+for d in $gitwatches; do
    [[ -d $d ]] || continue
    pushd $d
    {
-       if [[ -d $d/.git ]]; then
-	   git status -s
-       else
-	   svk status
-       fi
+       git status -s
    } always {
        popd
    }
