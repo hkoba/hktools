@@ -12,6 +12,10 @@ function cmd_install {
     exit
 }
 
+zparseopts -D -K x=o_xtrace
+
+if (($#o_xtrace)); then set -x; fi
+
 if ((ARGC)); then
     cmd=$1; shift
     cmd_$cmd "$@"
