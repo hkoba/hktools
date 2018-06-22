@@ -1,5 +1,7 @@
 #!/bin/zsh
 
+emulate -L zsh
+
 config=/etc/sysconfig/syscheck.env
 
 progname=$(readlink -f $0)
