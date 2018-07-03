@@ -121,3 +121,15 @@ for svc in $systemd_services; do
 	systemctl start $svc || true
     fi
 done
+
+# [7] systemd services which should be disabled and stopped
+for svc in $systemd_services_disabled; do
+    if systemctl --quiet is-enabled $svc; then
+	print "$svc should be disabled"
+	systemctl disable $svc || true
+    fi
+    if systemctl --quiet is-active $svc; then
+	print "$svc should be stopped"
+	systemctl stop $svc || true
+    fi
+done
