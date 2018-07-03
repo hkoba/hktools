@@ -72,6 +72,9 @@ for d should in $perm_ensure; do
    print "$d should be changed to $should (from $now)"
    chmod $should $d
 done
+for d should in $perm_ensure_recursively; do
+   chmod -cR $should $d
+done
 
 # [3] ownership enforcement
 for d should in $owner_ensure; do
@@ -84,6 +87,10 @@ for d should in $owner_ensure; do
     fi
     print "$d should be changed to $should (from $now[uid]:$now[gid])"
     chown $should $d
+done
+
+for d should in $owner_ensure_recursively; do
+    chown -cR $should $d
 done
 
 # [4] should be removed even after yum.
