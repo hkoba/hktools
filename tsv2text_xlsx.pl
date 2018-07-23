@@ -8,8 +8,18 @@ use File::Basename;
 use Excel::Writer::XLSX;
 use File::BOM;
 
+sub usage {
+  die <<END;
+Usage: @{[basename($0)]} FROM.txt ?TO.xlsx?
+
+Convert tsv text to xlsx, with all cells in text format.
+END
+}
+
 {
   my ($from, $to) = @ARGV;
+  usage() unless $from;
+
   $to ||= $from =~ s/\.\w+\z/.xlsx/r;
   my $book = Excel::Writer::XLSX->new($to);
   my $sheet = $book->add_worksheet(rootname(basename($from)));
