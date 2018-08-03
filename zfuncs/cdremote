@@ -1,0 +1,10 @@
+#!/bin/zsh
+
+emulate -L zsh
+
+cdremote () {
+        local remote=${1:-origin}
+        local url
+        url=$(git config remote.$remote.url)  || return 1
+        cd $url
+}
