@@ -12,9 +12,13 @@ use MOP4Import::Types
                      /]],
    Entry => [[fields =>
                 qw/
+                   client
                    from to relay delay delays dsn status
                    uid message-id
                    size nrcpt
+                   info
+
+                   status_timestamp
                    /
                      ]]);
 
@@ -32,6 +36,13 @@ sub parse {
     my $entry = $queue{$queue_id} //= +{};
     foreach my $item (@kvitems) {
       $entry->{$item->[0]} = $item->[1];
+      if ($item->[0] eq 'status') {
+        if ($entry->{status} =~ s/\s*\((.+)\)\z//) {
+          $entry->{info} = $1;
+          $entry->{status_timestamp} =
+            ($log->{_SOURCE_REALTIME_TIMESTAMP} * 0.000001);
+        }
+      }
     }
   }
   \%queue;
