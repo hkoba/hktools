@@ -12,7 +12,7 @@ use MOP4Import::Types
                      /]],
    Entry => [[fields =>
                 qw/
-                   queue_id
+                   _queue_id
                    client
                    from
                    uid message-id
@@ -44,7 +44,7 @@ sub parse {
       or next;
     my Entry $entry = $queue{$queue_id} //= +{
       # XXX: ここで型宣言が活かせなくて悔しい
-      queue_id => $queue_id,
+      _queue_id => $queue_id,
       _first_timestamp => $self->log_timestamp($log),
     };
     if ($kvitems->[0][0] eq 'to') {
