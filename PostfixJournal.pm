@@ -31,17 +31,15 @@ sub parse {
   my %queue;
   while (<>) {
     my Journal $log = JSON::decode_json($_);
-    my ($queue_id, @kvitems) = $self->decode_log($log)
+    my ($queue_id, $kvitems, $info) = $self->decode_log($log)
       or next;
     my $entry = $queue{$queue_id} //= +{};
-    foreach my $item (@kvitems) {
+    foreach my $item (@$kvitems) {
       $entry->{$item->[0]} = $item->[1];
       if ($item->[0] eq 'status') {
-        if ($entry->{status} =~ s/\s*\((.+)\)\z//) {
-          $entry->{info} = $1;
-          $entry->{status_timestamp} =
-            ($log->{_SOURCE_REALTIME_TIMESTAMP} * 0.000001);
-        }
+        $entry->{info} = $info;
+        $entry->{status_timestamp} =
+          ($log->{_SOURCE_REALTIME_TIMESTAMP} * 0.000001);
       }
     }
   }
@@ -58,14 +56,21 @@ sub decode_log {
 
   my ($queue_id) = $1;
 
-  my @items = do {
+  my $info;
+  if ($msg =~ s/\s*\((.+)\)\z//) {
+    $info = $1;
+  }
+
+  my @items = map {
+    /=/ ? [split /=/, $_, 2] : ();
+  } do {
     if ($msg =~ /^uid=/) {
-      map {[split /=/, $_, 2]} split " ", $msg;
+      split " ", $msg;
     } else {
-      map {[split /=/, $_, 2]} split /,\s*/, $msg;
+      split /,\s*/, $msg;
     }
   };
-  ($queue_id, @items);
+  ($queue_id, \@items, $info);
 }
 
 MY->run(\@ARGV) unless caller;
