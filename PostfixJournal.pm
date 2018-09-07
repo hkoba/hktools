@@ -12,15 +12,24 @@ use MOP4Import::Types
                      /]],
    Entry => [[fields =>
                 qw/
+                   queue_id
                    client
-                   from to relay delay delays dsn status
+                   from
                    uid message-id
                    size nrcpt
-                   info
 
-                   status_timestamp
+                   _recipient
+                   _first_timestamp
                    /
-                     ]]);
+           ]],
+   Recipient => [[fields =>
+                    qw/
+                       to relay delay delays dsn status
+                       _info
+                       _status_timestamp
+                       /
+                     ]],
+ );
 
 use JSON ();
 
@@ -33,17 +42,31 @@ sub parse {
     my Journal $log = JSON::decode_json($_);
     my ($queue_id, $kvitems, $info) = $self->decode_message($log->{MESSAGE})
       or next;
-    my Entry $entry = $queue{$queue_id} //= +{};
-    foreach my $item (@$kvitems) {
-      $entry->{$item->[0]} = $item->[1];
-      if ($item->[0] eq 'status') {
-        $entry->{info} = $info;
-        $entry->{status_timestamp} =
-          ($log->{_SOURCE_REALTIME_TIMESTAMP} * 0.000001);
-      }
+    my Entry $entry = $queue{$queue_id} //= +{
+      # XXX: ここで型宣言が活かせなくて悔しい
+      queue_id => $queue_id,
+      _first_timestamp => $self->log_timestamp($log),
+    };
+    if ($kvitems->[0][0] eq 'to') {
+      push @{$entry->{_recipient}}, my Recipient $recpt = +{};
+      $recpt->{$_->[0]} = $_->[1] for @$kvitems;
+
+      $recpt->{_info} = $info;
+      $recpt->{_status_timestamp} = $self->log_timestamp($log);
+    } else {
+      $entry->{$_->[0]} = $_->[1] for @$kvitems;
     }
   }
-  \%queue;
+
+  sort {
+    # XXX: ここで型宣言が使えなくて悔しい
+    $a->{_first_timestamp} <=> $b->{_first_timestamp}
+  } values %queue;
+}
+
+sub log_timestamp {
+  (my MY $self, my Journal $log) = @_;
+  $log->{_SOURCE_REALTIME_TIMESTAMP} * 0.000001;
 }
 
 sub decode_message {
@@ -53,6 +76,9 @@ sub decode_message {
     or return;
 
   my ($queue_id) = $1;
+
+  $msg =~ /=/
+    or return;
 
   my $info;
   if ($msg =~ s/\s*\((.+)\)\z//) {
