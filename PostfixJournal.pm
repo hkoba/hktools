@@ -31,7 +31,7 @@ sub parse {
   my %queue;
   while (<>) {
     my Journal $log = JSON::decode_json($_);
-    my ($queue_id, $kvitems, $info) = $self->decode_log($log)
+    my ($queue_id, $kvitems, $info) = $self->decode_message($log->{MESSAGE})
       or next;
     my $entry = $queue{$queue_id} //= +{};
     foreach my $item (@$kvitems) {
@@ -46,10 +46,8 @@ sub parse {
   \%queue;
 }
 
-sub decode_log {
-  (my MY $self, my Journal $log) = @_;
-
-  my $msg = $log->{MESSAGE};
+sub decode_message {
+  (my MY $self, my $msg) = @_;
 
   $msg =~ s/^([0-9A-F]+): //
     or return;
