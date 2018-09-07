@@ -74,3 +74,23 @@ sub decode_message {
 MY->run(\@ARGV) unless caller;
 
 1;
+
+=head1 NAME
+
+PostfixJournal - parse postfix log from journald json
+
+=head1 SYNOPSIS
+
+  journalctl -u postfix --since 14:58:52 --until 14:58:58 --output json |
+  PostfixJournal.pm parse |
+  jq .
+
+=head1 SEE ALSO
+
+L<Mail-Log-Hashnize|https://github.com/xtetsuji/p5-Mail-Log-Hashnize.git>
+
+=head1 AUTHOR
+
+hkoba
+
+=cut
