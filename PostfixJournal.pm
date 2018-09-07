@@ -45,14 +45,14 @@ sub parse {
     my Entry $entry = $queue{$queue_id} //= +{
       # XXX: ここで型宣言が活かせなくて悔しい
       _queue_id => $queue_id,
-      _first_timestamp => $self->log_timestamp($log),
+      _first_timestamp => $self->journal_timestamp($log),
     };
     if ($kvitems->[0][0] eq 'to') {
       push @{$entry->{_recipient}}, my Recipient $recpt = +{};
       $recpt->{$_->[0]} = $_->[1] for @$kvitems;
 
       $recpt->{_info} = $info;
-      $recpt->{_status_timestamp} = $self->log_timestamp($log);
+      $recpt->{_status_timestamp} = $self->journal_timestamp($log);
     } else {
       $entry->{$_->[0]} = $_->[1] for @$kvitems;
     }
@@ -64,7 +64,7 @@ sub parse {
   } values %queue;
 }
 
-sub log_timestamp {
+sub journal_timestamp {
   (my MY $self, my Journal $log) = @_;
   $log->{_SOURCE_REALTIME_TIMESTAMP} * 0.000001;
 }
