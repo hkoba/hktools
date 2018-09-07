@@ -33,7 +33,7 @@ sub parse {
     my Journal $log = JSON::decode_json($_);
     my ($queue_id, $kvitems, $info) = $self->decode_message($log->{MESSAGE})
       or next;
-    my $entry = $queue{$queue_id} //= +{};
+    my Entry $entry = $queue{$queue_id} //= +{};
     foreach my $item (@$kvitems) {
       $entry->{$item->[0]} = $item->[1];
       if ($item->[0] eq 'status') {
