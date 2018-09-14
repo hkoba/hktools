@@ -1,0 +1,3 @@
+[submodule "MOP4Import"]
+	path = MOP4Import
+	url = ../perl-mop4import-declare.git
