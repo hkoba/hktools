@@ -39,6 +39,9 @@ sub parse {
   local $_;
   my %queue;
   while (<>) {
+    if (/\P{ASCII}/ and Encode::is_utf8($_)) {
+      Encode::_utf8_off($_);
+    }
     my Journal $log = JSON::decode_json($_);
     my ($queue_id, $kvitems, $info) = $self->decode_message($log->{MESSAGE})
       or next;
