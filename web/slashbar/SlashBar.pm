@@ -2,7 +2,10 @@
 package SlashBar;
 use strict;
 use File::AddInc;
-use MOP4Import::Base::CLI_JSON -as_base;
+use MOP4Import::Base::CLI_JSON -as_base
+  , [fields =>
+       , [explicit_app_prefix => doc => "generate regexp with hardcoded app_prefix"]
+   ];
 
 sub parse_sample_url {
   (my MY $self, my $sample_url) = @_;
@@ -15,18 +18,44 @@ sub parse_sample_url {
     or $self->cmd_help("Sample URL must contain '/-/'!");
 
   my @els = split m{([^/]+)}, $innerPath;
+
+  ($appPrefix, @els);
+}
+
+sub regexp_for_sample_url {
+  (my MY $self, my $sample_url) = @_;
+
+  unless ($sample_url) {
+    $self->cmd_help("Not enough argument! regexp_for_sample_url /SAMPLE/URL/-/LIKE/THIS\n");
+  }
+
+  my ($appPrefix, @els) = $self->parse_sample_url($sample_url);
   my $i = 0;
   my $re = "(?<s$i>".shift(@els).")";
+  my @vars = ("s$i");
   while (@els) {
     shift @els;
     my $word = q{\w+};
     $re = "(?<w$i>$re(?:$word)?)";
+    push @vars, "w$i";
     my $slash = shift @els or next;
     $re = "(?<s$i>$re(?:$slash)?)";
+    push @vars, "s$i";
   } continue {
     $i++;
   }
-  $re;
+
+  $re .= q{(?<rest>/.*)$};
+
+  my $location = do {
+    if ($self->{explicit_app_prefix}) {
+      "^$appPrefix/-$re";
+    } else {
+      q{^(?<appPrefix>(?:/[^-\./]+)*)/-}.$re;
+    }
+  };
+
+  ($location, reverse @vars);
 }
 
 MY->run(\@ARGV) unless caller;
