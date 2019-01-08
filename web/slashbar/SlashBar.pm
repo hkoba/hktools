@@ -45,17 +45,15 @@ sub regexp_for_sample_url {
     $i++;
   }
 
-  $re .= q{(?<rest>/.*)$};
-
-  my $location = do {
+  my $prefixRe = do {
     if ($self->{explicit_app_prefix}) {
-      "^$appPrefix/-$re";
+      $appPrefix;
     } else {
-      q{^(?<appPrefix>(?:/[^-\./]+)*)/-}.$re;
+      q{(?<appPrefix>(?:/[^-\./]+)*)}
     }
   };
 
-  ($location, reverse @vars);
+  ([$prefixRe, "/-", $re, q{(?<rest>/.*)?}], [reverse @vars]);
 }
 
 MY->run(\@ARGV) unless caller;
