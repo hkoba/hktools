@@ -34,6 +34,7 @@ sub regexp_for_sample_url {
   my $re = "(?<s$i>".shift(@els).")";
   my @vars = ("s$i");
   while (@els) {
+    ++$i;
     shift @els;
     my $word = q{\w+};
     $re = "(?<w$i>$re(?:$word)?)";
@@ -41,8 +42,6 @@ sub regexp_for_sample_url {
     my $slash = shift @els or next;
     $re = "(?<s$i>$re(?:$slash)?)";
     push @vars, "s$i";
-  } continue {
-    $i++;
   }
 
   my $prefixRe = do {
