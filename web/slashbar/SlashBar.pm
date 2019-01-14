@@ -48,7 +48,7 @@ sub regexp_for_sample_url {
     if ($self->{explicit_app_prefix}) {
       $appPrefix;
     } else {
-      q{(?<appPrefix>(?:/[^-\./]+)*)}
+      q{(?<appPrefix>(?:/[^-\./]+)+)}
     }
   };
 
