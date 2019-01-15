@@ -37,10 +37,10 @@ sub regexp_for_sample_url {
     ++$i;
     shift @els;
     my $word = q{\w+};
-    $re = "(?<w$i>$re(?:$word)?)";
+    $re .= "(?<w$i>$word)?";
     push @vars, "w$i";
     my $slash = shift @els or next;
-    $re = "(?<s$i>$re(?:$slash)?)";
+    $re .= "(?<s$i>$slash)?";
     push @vars, "s$i";
   }
 
@@ -52,7 +52,7 @@ sub regexp_for_sample_url {
     }
   };
 
-  ([$prefixRe, "/-", $re, q{(?<rest>/.*)?}], [reverse @vars]);
+  ([$prefixRe, "/-", $re, q{(?<rest>/.*)?}], \@vars);
 }
 
 MY->run(\@ARGV) unless caller;

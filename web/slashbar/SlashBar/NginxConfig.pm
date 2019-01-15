@@ -19,7 +19,7 @@ use SlashBar -as_base
 sub cmd_generate_for_sample_url {
   (my MY $self, my $sample_url) = @_;
 
-  print $self->generate_for_sample_url($sample_url);
+  print $self->generate_for_sample_url($sample_url), "\n";
 }
 
 sub generate_for_sample_url {
@@ -35,14 +35,11 @@ sub generate_for_sample_url {
 
   push @res, $self->gen_static($reList, $varList);
 
-  # push @res, $self->gen_real_file($reList, $varList);
-
-  push @res, $self->gen_explicit_ext($reList, $varList);
-
-  # push @res, $self->gen_try_file_list($reList, $varList);
-  push @res, $self->gen_rewrite_file_list($reList, $varList);
-
-  push @res, $self->gen_other_static($reList, $varList);
+  push @res, $self->gen_outer_location(
+    $reList, $varList,
+    [$self->gen_explicit_ext($reList, $varList)],
+    [$self->gen_rewrite_file_list($reList, $varList)],
+  );
 
   @res;
 }
@@ -78,32 +75,31 @@ sub gen_static {
   my @res;
   push @res, "# static block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  alias %s$appPrefix/static$rest;}, $self->{root});
+  push @res, sprintf(q{  alias %s$appPrefix.webapp/static$rest;}, $self->{root});
   push @res, "}", "";
 
   join("\n", @res)."\n";
 }
 
-sub gen_real_file {
-  (my MY $self, my ($reList, $varList)) = @_;
+sub gen_outer_location {
+  (my MY $self, my ($reList, $varList, @innerBlock)) = @_;
 
   my ($prefix, $sep, @rest) = @$reList;
 
-  my $extRe = join("|", map {quotemeta($_)} $self->extensions);
-
-  my $locationRe = "^$prefix$sep(?<file>/.*?)\$";
+  my $locationRe = "^$prefix$sep(?<orig_rest>/.*)\$";
 
   my @res;
-  push @res, "# real_file block" unless $self->{no_comment};
+  push @res, "# dynamic block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q|  set %s %s$appPrefix/public$file;|, $self->{save_try_as_var}, $self->{root});
-  push @res, sprintf(q|  alias %s$appPrefix/public;|, $self->{root});
-  if ($self->{include_for_dynamic}) {
-    push @res, sprintf(q|  include "%s";|, $self->{include_for_dynamic});
-  }
-  push @res, "}", "";
+  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{root});
+  push @res, sprintf(q{  set $public_root $app_root/public;});
+  push @res, sprintf(q|  alias $public_root$orig_rest;|);
 
-  join("\n", @res)."\n";
+  push @res, map {("", map("  $_", @$_))} @innerBlock;
+
+  push @res, "}";
+
+  map {s/\n*$/\n/r} @res;
 }
 
 sub gen_explicit_ext {
@@ -118,21 +114,20 @@ sub gen_explicit_ext {
   my @res;
   push @res, "# explicit_ext block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  set $app_root %s$appPrefix;}, $self->{root});
+  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{root});
   push @res, sprintf(q{  set $public_root $app_root/public;});
-  push @res, sprintf(q{  alias $public_root/;});
   if ($self->{include_for_dynamic}) {
     push @res, sprintf(q|  include "%s";|, $self->{include_for_dynamic});
   }
-
+  push @res, q|  fastcgi_split_path_info ^((?:/[^-\./]+)*/-)(/.*)$;|;
   push @res, sprintf(q|  set %s $public_root$file$rest;|, $self->{save_try_as_var});
   push @res, sprintf(q|  if (-f $public_root$file) {|);
   push @res, "    $self->{upstream_pass_statement};" if $self->{upstream_pass_statement};
   push @res, "    break;";
   push @res, "  }";
-  push @res, "}", "";
+  push @res, "}";
 
-  join("\n", @res)."\n";
+  map {"$_\n"} @res;
 }
 
 sub gen_rewrite_file_list {
@@ -143,110 +138,51 @@ sub gen_rewrite_file_list {
   my $locationRe = '^'.join("", @$reList).'$';
 
   my @res;
-  push @res, "# try_file_list block" unless $self->{no_comment};
+  push @res, "# rewrite_file_list block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  set $app_root %s$appPrefix;}, $self->{root});
+  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{root});
   push @res, sprintf(q{  set $public_root $app_root/public;});
-  push @res, sprintf(q{  alias $public_root/;});
 
-  foreach my $var (@$varList) {
+  #   foreach my $var (@$varList)
+  for (my $vn = $#$varList; $vn >= 0; $vn--) {
+    my $var = $varList->[$vn];
     if ($var =~ /^w/) {
+      my $path = join "", map('$'.$_, @{$varList}[0..$vn-1]), sprintf(q|${%s}|, $var);
+
+      my $suffix = join "", map {'$'.$_} @{$varList}[($vn+1) .. $#$varList];
+
       foreach my $ext ($self->extensions) {
-        push @res, sprintf(q|  if (-f $public_root$%s%s) {|, $var, $ext);
-        push @res, sprintf(q|    rewrite (%s%s)(.*) $1$%s%s last;|, $prefix, $sep, $var, $ext);
+        push @res, sprintf(q|  if (-f $public_root%s%s) {|, $path, $ext);
+        push @res, sprintf(q|    rewrite ^.*$ $appPrefix/-%s%s%s$rest last;|, $path, $ext, $suffix);
         push @res, "  }";
       }
     } elsif ($var =~ /^s/) {
       # s0, s1... ends with /
 
-     push @res, sprintf(q|  set $file $public_root${%s}$rest;|, $var);
+      my $path0 = join "", map('$'.$_, @{$varList}[0..$vn-1]);
+      my $suffix = join "", map {'$'.$_} @{$varList}[($vn) .. $#$varList];
+
+      push @res, sprintf(q|  set $file $public_root%s$rest;|, $path0);
       push @res, '  if (-f $file) {';
       push @res, "    break;";
       push @res, "  }";
 
- 
+      my $path1 = join "", map('$'.$_, @{$varList}[0..$vn-1]), sprintf(q|${%s}|, $var);
       foreach my $ext ($self->extensions) {
-        push @res, sprintf(q|  if (-f $public_root${%s}index%s) {|, $var, $ext);
-        push @res, sprintf(q|    rewrite (%s%s)(.*) $1${%s}index%s last;|, $prefix, $sep, $var, $ext);
+        push @res, sprintf(q|  if (-f $public_root%sindex%s) {|, $path1, $ext);
+        push @res, sprintf(q|    rewrite ^.*$ $appPrefix/-%sindex%s%s$rest last;|, $path1, $ext, $suffix);
         push @res, "  }";
       }
+    } else {
+      die "really??";
     }
   }
   push @res, q|  if (!-f $request_uri) {|;
   push @res, q|    return 404;|;
   push @res, q|  }|;
-  push @res, "}", "";
+  push @res, "}";
 
-  join("\n", @res)."\n";
-}
-
-sub gen_try_file_list {
-  (my MY $self, my ($reList, $varList)) = @_;
-
-  my $locationRe = '^'.join("", @$reList).'$';
-
-  my @res;
-  push @res, "# try_file_list block" unless $self->{no_comment};
-  push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  set $app_root %s$appPrefix;}, $self->{root});
-  push @res, sprintf(q{  set $public_root $app_root/public;});
-  push @res, sprintf(q{  alias $public_root/;});
-  if ($self->{include_for_dynamic}) {
-    push @res, sprintf(q|  include "%s";|, $self->{include_for_dynamic});
-  }
-
-  foreach my $var (@$varList) {
-    if ($var =~ /^w/) {
-      foreach my $ext ($self->extensions) {
-        push @res, sprintf(q|  set $file $public_root$%s%s;|, $var, $ext);
-        push @res, sprintf(q|  if (-f $file) {|);
-        push @res, sprintf(q|    set %s $file$rest;|, $self->{save_try_as_var});
-        push @res, "    $self->{upstream_pass_statement};" if $self->{upstream_pass_statement};
-        push @res, "    break;";
-        push @res, "  }";
-      }
-    } elsif ($var =~ /^s/) {
-      # s0, s1... ends with /
-
-      push @res, sprintf(q|  set $file $public_root${%s}$rest;|, $var);
-      push @res, '  if (-f $file) {';
-      # push @res, '    set $request_filename $file;';
-      push @res, '    root $public_root;';
-      push @res, "    break;";
-      push @res, "  }";
-
-      foreach my $ext ($self->extensions) {
-        push @res, sprintf(q|  set $file $public_root${%s}index%s;|, $var, $ext);
-        push @res, sprintf(q|  if (-f $file) {|);
-        push @res, sprintf(q|    set %s $file$rest;|, $self->{save_try_as_var});
-        push @res, "    $self->{upstream_pass_statement};" if $self->{upstream_pass_statement};
-        push @res, "    break;";
-        push @res, "  }";
-      }
-    }
-  }
-  push @res, q|  if (!-f $request_uri) {|;
-  push @res, q|    return 404;|;
-  push @res, q|  }|;
-  push @res, "}", "";
-
-  join("\n", @res)."\n";
-}
-
-sub gen_other_static {
-  (my MY $self, my ($reList, $varList)) = @_;
-
-  my ($prefix, $sep, @rest) = @$reList;
-
-  my $locationRe = "^$prefix$sep(?<rest>/.*)\$";
-
-  my @res;
-  push @res, "# other_static block" unless $self->{no_comment};
-  push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  alias %s$appPrefix;}, $self->{root});
-  push @res, "}", "";
-
-  join("\n", @res)."\n";
+  map {"$_\n"} @res;
 }
 
 MY->run(\@ARGV) unless caller;
