@@ -4,8 +4,8 @@ use strict;
 use File::AddInc;
 use SlashBar -as_base
   , [fields =>
-       , [root => default => "/web/subapps"
-          , doc => "Physical root directory of mapped webapps"]
+       , [directory_prefix => default => "/web/root"
+          , doc => "Physical root directory"]
        , [try_ext => doc => "File extension for try_file_list"]
        , [save_try_as_var => default => '$alias_path']
        , [include_for_dynamic => default => ''
@@ -75,7 +75,7 @@ sub gen_static {
   my @res;
   push @res, "# static block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  alias %s$appPrefix.webapp/static$rest;}, $self->{root});
+  push @res, sprintf(q{  alias %s$appPrefix.webapp/static$rest;}, $self->{directory_prefix});
   push @res, "}", "";
 
   join("\n", @res)."\n";
@@ -91,7 +91,7 @@ sub gen_outer_location {
   my @res;
   push @res, "# dynamic block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{root});
+  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{directory_prefix});
   push @res, sprintf(q{  set $public_root $app_root/public;});
   push @res, sprintf(q|  alias $public_root$orig_rest;|);
 
@@ -114,12 +114,12 @@ sub gen_explicit_ext {
   my @res;
   push @res, "# explicit_ext block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{root});
+  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{directory_prefix});
   push @res, sprintf(q{  set $public_root $app_root/public;});
   if ($self->{include_for_dynamic}) {
     push @res, sprintf(q|  include "%s";|, $self->{include_for_dynamic});
   }
-  push @res, q|  fastcgi_split_path_info ^((?:/[^-\./]+)*/-)(/.*)$;|;
+  # push @res, q|  fastcgi_split_path_info ^((?:/[^-\./]+)*/-)(/.*)$;|;
   push @res, sprintf(q|  set %s $public_root$file$rest;|, $self->{save_try_as_var});
   push @res, sprintf(q|  if (-f $public_root$file) {|);
   push @res, "    $self->{upstream_pass_statement};" if $self->{upstream_pass_statement};
@@ -140,7 +140,7 @@ sub gen_rewrite_file_list {
   my @res;
   push @res, "# rewrite_file_list block" unless $self->{no_comment};
   push @res, "location ~ $locationRe \{";
-  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{root});
+  push @res, sprintf(q{  set $app_root %s$appPrefix.webapp;}, $self->{directory_prefix});
   push @res, sprintf(q{  set $public_root $app_root/public;});
 
   #   foreach my $var (@$varList)
@@ -153,7 +153,8 @@ sub gen_rewrite_file_list {
 
       foreach my $ext ($self->extensions) {
         push @res, sprintf(q|  if (-f $public_root%s%s) {|, $path, $ext);
-        push @res, sprintf(q|    rewrite ^.*$ $appPrefix/-%s%s%s$rest last;|, $path, $ext, $suffix);
+        push @res, sprintf(q|    rewrite ^.*$ %s$appPrefix/-%s%s%s$rest last;|
+                             , $self->{location_prefix}, $path, $ext, $suffix);
         push @res, "  }";
       }
     } elsif ($var =~ /^s/) {
@@ -170,7 +171,8 @@ sub gen_rewrite_file_list {
       my $path1 = join "", map('$'.$_, @{$varList}[0..$vn-1]), sprintf(q|${%s}|, $var);
       foreach my $ext ($self->extensions) {
         push @res, sprintf(q|  if (-f $public_root%sindex%s) {|, $path1, $ext);
-        push @res, sprintf(q|    rewrite ^.*$ $appPrefix/-%sindex%s%s$rest last;|, $path1, $ext, $suffix);
+        push @res, sprintf(q|    rewrite ^.*$ %s$appPrefix/-%sindex%s%s$rest last;|
+                             , $self->{location_prefix}, $path1, $ext, $suffix);
         push @res, "  }";
       }
     } else {

@@ -4,7 +4,8 @@ use strict;
 use File::AddInc;
 use MOP4Import::Base::CLI_JSON -as_base
   , [fields =>
-       , [explicit_app_prefix => doc => "generate regexp with hardcoded app_prefix"]
+       , [location_prefix => default => ""
+          , doc => "Leading portion of local URI"]
    ];
 
 sub parse_sample_url {
@@ -44,14 +45,7 @@ sub regexp_for_sample_url {
     push @vars, "s$i";
   }
 
-  my $prefixRe = do {
-    if ($self->{explicit_app_prefix}) {
-      $appPrefix;
-    } else {
-      q{(?<appPrefix>(?:/[^-\./]+)+)}
-    }
-  };
-
+  my $prefixRe = $self->{location_prefix}.q{(?<appPrefix>(?:/[^-\./]+)*)};
   ([$prefixRe, "/-", $re, q{(?<rest>/.*)?}], \@vars);
 }
 
