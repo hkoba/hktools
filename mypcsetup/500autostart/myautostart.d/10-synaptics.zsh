@@ -12,8 +12,9 @@ function devset {
     x xinput set-prop $dev "$@"
 }
 
-if xinput list-props $dev |grep libinput >& /dev/null;then
+if xinput list-props $dev 2>/dev/null |grep libinput >& /dev/null;then
 
+    devset 'libinput Accel Speed' 0
     devset 'libinput Tapping Enabled' 1
     devset 'libinput Click Method Enabled' 0 1; # for clickfinger
     devset 'libinput Tapping Button Mapping Enabled' 1 0; # for left-right-mid

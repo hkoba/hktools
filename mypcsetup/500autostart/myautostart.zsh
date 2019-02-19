@@ -7,6 +7,10 @@ dataDir=$binDir/$0:r:t.d
 
 setopt extendedglob
 
+zparseopts -D -K x=o_xtrace
+
+if (($#o_xtrace)); then set -x; fi
+
 for fn in $dataDir/<1->*.zsh(N); do
 	$fn
 done
