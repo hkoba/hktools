@@ -10,6 +10,7 @@ package require snit
 snit::widget text-nowrap {
     
     component myText -inherit yes
+    component mySearch
 
     option -selection no
     option -encoding utf-8
@@ -21,9 +22,38 @@ snit::widget text-nowrap {
 	pack [set sw [ScrolledWindow $win.sw]] -fill both -expand yes
 
 	install myText using text $sw.text -wrap none
-
+        
 	$sw setwidget $myText
+
+        install mySearch using entry $win.search
+        
+        pack $mySearch -fill x -expand yes -side top
+        
+        $self interactive
     }
+    
+    typevariable ourTags -array [list search-match search-match]
+
+    method interactive {} {
+        bind $mySearch <Return> [list $self Search]
+        $myText tag configure $ourTags(search-match) \
+            -background palegreen
+        
+    }
+    
+    method Search {{text ""}} {
+        if {$text eq ""} {
+            set text [$mySearch get]
+        }
+        if {[set found [$myText search -count len $text insert]] ne ""} {
+            $myText see $found
+            set end "$found+${len}chars"
+            $myText mark set insert $end
+            $myText tag remove $ourTags(search-match) 1.0 end
+            $myText tag add $ourTags(search-match) $found $end
+        }
+    }
+    
 }
 
 namespace eval text-nowrap {
