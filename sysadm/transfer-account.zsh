@@ -24,6 +24,10 @@ if (($#o_xtrace)); then
   set -x
 fi
 
+if ((! $#o_sh)); then
+    o_sh=(-s $SHELL)
+fi
+
 #========================================
 
 ((ARGC == 1 || ARGC == 2)) || usage
