@@ -17,7 +17,10 @@ EOF
 #========================================
 
 o_xtrace=() o_sh=() o_install_prereqs=() o_admin=() o_group=()
-zparseopts -D -K x=o_xtrace P=o_install_prereqs A=o_admin s:=o_sh \
+o_gitconfig=()
+zparseopts -D -K x=o_xtrace P=o_install_prereqs A=o_admin \
+           -gitconfig=o_gitconfig \
+           s:=o_sh \
            G:=o_group
 
 if (($#o_xtrace)); then
@@ -107,5 +110,21 @@ ssh -Y $(mk_ssh_cmd $host "$cmds[@]") <<<$authorized_keys
 echo Setting initial password for $user on $host...
 pass=$($askpass Initial password for $user)
 ssh -Y $(mk_ssh_cmd $host "passwd --stdin $user") <<<$pass
+
+if (($#o_gitconfig)); then
+    theFn=/home/$user/.gitconfig
+    install_cmds=(
+        "tee -a $theFn"
+        "chown $user:$user $theFn"
+    )
+    
+    {
+        if [[ -r $theFn ]]; then
+            cat $theFn
+        else
+            $sudo_cat cat $theFn
+        fi
+    } | ssh -Y $(mk_ssh_cmd $host "$install_cmds[@]")
+fi
 
 echo DONE
