@@ -1,0 +1,40 @@
+#compdef -P (*/)#*.pm
+
+print "YESS, modulino!!, yess"
+# print funcfiletrace ${(@q-)funcfiletrace}
+# print funcsourcetrace ${(@q-)funcsourcetrace}
+
+_perl_modulino_script_dir=${${${funcsourcetrace[1]}%:0}:a:h:h}
+_perl_modulino_inspector=(
+    perl -I$_perl_modulino_script_dir/
+    $_perl_modulino_script_dir/MOP4Import/CLI/Completer.pm
+    -0
+)
+
+function _perl_modulino {
+    integer ret=1
+    local curcontext=$curcontext state line pmfile
+    declare -A opt_args
+    
+    pmfile=${~${words[1]}}
+
+    local arg_specs
+    arg_specs=(
+        ${(0)"$(
+                $_perl_modulino_inspector \
+                zsh_arguments \
+                CURSOR $CURSOR \
+                CURRENT $CURRENT \
+                pmfile $pmfile \
+                words \[${(j/,/)${(@qqq)words[2,-1]}}\] \
+                BUFFER ${(q-)BUFFER} \
+
+        )"}
+    )
+    
+    _arguments -C : $arg_specs && ret=0    
+
+    return ret
+}
+
+_perl_modulino
