@@ -29,35 +29,46 @@ function _perl_modulino_inspect {
         "$@" || return $?
 }
 
+function _perl_modulino_is_completing_main_options {
+    local argList
+    argList=("$words[@]")
+    shift argList
+    local curPos=$[CURRENT-1]
+    local methodPos=$argList[(ri)[a-z]*]
+    if (($methodPos <= $#argList && $methodPos < $curPos)); then
+        return 1
+    fi
+    [[ $argList[$curPos] = -* ]]
+}
+
 function _perl_modulino {
     integer ret=1
-    local curcontext=$curcontext state line
-    declare -A opt_args
+    # local curcontext=$curcontext state line
+    # declare -A opt_args
 
     local debug=0
     if (($+DEBUG_ZSH_perl_modulino)) && ((DEBUG_ZSH_perl_modulino)); then
         debug=1
     fi
 
-    local modulino_opts
-    if ((debug)); then set -x; fi
-    modulino_opts=(${(0)"$(_perl_modulino_inspect zsh_options)"})
-    if ((debug)); then set +x; fi
+    if _perl_modulino_is_completing_main_options; then
+        local modulino_opts
+        if ((debug)); then set -x; fi
+        modulino_opts=(${(0)"$(_perl_modulino_inspect zsh_options)"})
+        if ((debug)); then set +x; fi
 
-    _arguments -C : \
-                $modulino_opts \
-               '1::->method' \
-        && ret=0
+        _arguments : $modulino_opts && ret=0
 
-    case $state in
-        (method)
-            local modulino_methods
-            if ((debug)); then set -x; fi
-            modulino_methods=(${(0)"$(_perl_modulino_inspect zsh_methods)"})
-            if ((debug)); then set +x; fi
-            _describe -t method "Methods" modulino_methods
-        ;;
-    esac
+        # _describe -t main_options "Main Options" modulino_opts && ret=0
+        
+    else
+        local modulino_methods
+        if ((debug)); then set -x; fi
+        modulino_methods=(${(0)"$(_perl_modulino_inspect zsh_methods)"})
+        if ((debug)); then set +x; fi
+
+        _describe -t method "Methods" modulino_methods && ret=0
+    fi
 
     return ret
 }
