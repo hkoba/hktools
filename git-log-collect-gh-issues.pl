@@ -13,13 +13,15 @@ use warnings;
   my %issues;
   while (<>) {
     chomp;
-    m{\[GH \#(\d+)\]} or next;
-    push @{$issues{$1}}, $_;
+    my ($issueNo) = m{\[GH \#(\d+)\]}
+      or next;
+    s/^(\s*For \[GH \#$issueNo\])//;
+    push @{$issues{$issueNo}}, $_;
   }
 
-  my $indent = "        ";
+  my $indent = "    ";
 
   print map {
-    "$indent - [GH #$_]". join("\n$indent   ", @{$issues{$_}}). " \n"
+    "$indent* [GH #$_]". join("\n$indent ", @{$issues{$_}}). " \n"
   } sort {$b <=> $a} keys %issues;
 }
