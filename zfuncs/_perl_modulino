@@ -9,6 +9,7 @@ _perl_modulino_inspector=(
     perl -I$_perl_modulino_script_dir/
     $_perl_modulino_script_dir/MOP4Import/CLI/Completer.pm
     -0
+    joined
 )
 
 function _perl_modulino_inspect {
@@ -16,8 +17,9 @@ function _perl_modulino_inspect {
     shift || return 1
     pmfile=$words[1]
     shift words || return 1
+    # TODO: _call_program
     $_perl_modulino_inspector \
-        joined $method \
+        $method \
         CURSOR $CURSOR \
         CURRENT $[CURRENT - 1] \
         NUMERIC "$NUMERIC" \
