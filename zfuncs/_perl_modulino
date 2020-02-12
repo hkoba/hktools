@@ -46,7 +46,7 @@ function _perl_modulino {
 
     _arguments -C : \
                 $modulino_opts \
-               '(-)*: :->method' \
+               '1::->method' \
         && ret=0
 
     case $state in
