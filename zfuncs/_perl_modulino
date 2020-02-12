@@ -1,6 +1,6 @@
 #compdef -P (*/)#*.pm
 
-print "YESS, modulino!!, yess"
+# print "YESS, modulino!!, yess"
 # print funcfiletrace ${(@q-)funcfiletrace}
 # print funcsourcetrace ${(@q-)funcsourcetrace}
 
@@ -11,28 +11,51 @@ _perl_modulino_inspector=(
     -0
 )
 
+function _perl_modulino_inspect {
+    local method=$1 pmfile
+    shift || return 1
+    pmfile=$words[1]
+    shift words || return 1
+    $_perl_modulino_inspector \
+        joined $method \
+        CURSOR $CURSOR \
+        CURRENT $[CURRENT - 1] \
+        NUMERIC "$NUMERIC" \
+        pmfile $~pmfile \
+        words \[${(j/,/)${(@qqq)words}}\] \
+        BUFFER ${(q-)BUFFER} \
+        "$@" || return $?
+}
+
 function _perl_modulino {
     integer ret=1
-    local curcontext=$curcontext state line pmfile
+    local curcontext=$curcontext state line
     declare -A opt_args
-    
-    pmfile=${~${words[1]}}
 
-    local arg_specs
-    arg_specs=(
-        ${(0)"$(
-                $_perl_modulino_inspector \
-                zsh_arguments \
-                CURSOR $CURSOR \
-                CURRENT $CURRENT \
-                pmfile $pmfile \
-                words \[${(j/,/)${(@qqq)words[2,-1]}}\] \
-                BUFFER ${(q-)BUFFER} \
+    local debug=0
+    if (($+DEBUG_ZSH_perl_modulino)) && ((DEBUG_ZSH_perl_modulino)); then
+        debug=1
+    fi
 
-        )"}
-    )
-    
-    _arguments -C : $arg_specs && ret=0    
+    local modulino_opts
+    if ((debug)); then set -x; fi
+    modulino_opts=(${(0)"$(_perl_modulino_inspect zsh_options)"})
+    if ((debug)); then set +x; fi
+
+    _arguments -C : \
+                $modulino_opts \
+               '(-)*: :->method' \
+        && ret=0
+
+    case $state in
+        (method)
+            local modulino_methods
+            if ((debug)); then set -x; fi
+            modulino_methods=(${(0)"$(_perl_modulino_inspect zsh_methods)"})
+            if ((debug)); then set +x; fi
+            _describe -t method "Methods" modulino_methods
+        ;;
+    esac
 
     return ret
 }
