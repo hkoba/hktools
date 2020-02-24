@@ -1,0 +1,1 @@
+perl-App-oo_modulino_zsh_completion_helper/script/oo_modulino_zsh_completion_helper.pl
