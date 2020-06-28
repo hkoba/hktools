@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-# Collect [GH #NN] lines and format them for Changes.
+# Collect ([GH #NN] | GH-NN) lines and format them for Changes.
 # (Hand editing is required, though.)
 
 # Use this like following:
@@ -13,15 +13,22 @@ use warnings;
   my %issues;
   while (<>) {
     chomp;
-    my ($issueNo) = m{\[GH \#(\d+)\]}
+    m/(\[GH \#(?<issue>\d+)\]|GH-(?<issue>\d+))/
       or next;
-    s/^(\s*For \[GH \#$issueNo\])//;
-    push @{$issues{$issueNo}}, $_;
+    s/^\s*For\s+//
+      or next;
+    my @issues;
+    while (s/^\s*(\[GH \#(?<issue>\d+)\]|GH-(?<issue>\d+))//) {
+      push @issues, $+{issue};
+    }
+    foreach my $issue (@issues) {
+      push @{$issues{$issue}}, $_;
+    }
   }
 
   my $indent = "    ";
 
   print map {
-    "$indent* [GH #$_]". join("\n$indent ", @{$issues{$_}}). " \n"
+    "$indent* GH-$_". join("\n$indent ", @{$issues{$_}}). " \n"
   } sort {$b <=> $a} keys %issues;
 }
