@@ -27,6 +27,11 @@ from=$1
 to=$2
 remote=$(git config remote.origin.url)
 
+[[ $remote == $from* ]] || {
+    echo 1>&2 remote prefix does not match: remote=$remote
+    exit 1
+}
+
 new_remote=${remote/$~from/$to}
 
 x git remote set-url origin $new_remote
