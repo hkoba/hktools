@@ -25,13 +25,16 @@ zparseopts -D -K n=o_dryrun q=o_quiet
 
 from=$1
 to=$2
-remote=$(git config remote.origin.url)
 
-[[ $remote == $from* ]] || {
-    echo 1>&2 remote prefix does not match: remote=$remote
-    exit 1
-}
+for remote in $(git remote); do
 
-new_remote=${remote/$~from/$to}
+    remoteUrl=$(git config remote.$remote.url)
 
-x git remote set-url origin $new_remote
+    [[ $remoteUrl == $from* ]] || continue
+
+    new_remote=${remoteUrl/$~from/$to}
+
+    x git remote set-url $remote $new_remote
+
+done
+
