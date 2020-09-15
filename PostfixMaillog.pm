@@ -24,7 +24,9 @@ use MOP4Import::Types
                            information
                            from to
                            uid
+                           _meta
                           /]],
+    Meta => [[fields => qw/host start_date success end_date/]],
   );
 
 my %month = (qw(Jan 1 Feb 2 Mar 3 Apr 4 May 5 Jun 6 Jul 7 Aug 8 Sep 9 Oct 10 Nov 11 Dec 12));
@@ -53,23 +55,101 @@ sub parse {
   (my MY $self, my @files) = @_;
   local @ARGV = @files;
   local $_;
-  # my %queue;
+
+  my (%queue);
   while (<<>>) {
     chomp;
     /$re_line/
       or do {warn "Can't parse: $_\n"; next};
 
-    my Log $log = \%+;
+    my Log $log = +{%+};
 
     if ($self->skew_date($log->{date})) {
       $self->{year}++;
     }
 
-    $self->cli_output([$log]);
+    if ($log->{service} and defined $log->{queue_id}) {
+
+      my ($information) = $log->{following} =~ /\s*\((.+)\)$/
+        and $log->{following} =~ s/\s\(.+\)$//;
+
+      my QRec $current = $self->parse_following($log->{following}, $information);
+
+      my QRec $merged = $self->merge_hash($queue{$log->{queue_id}} //= +{}
+                                          , $current
+                                        );
+
+      my Meta $meta = $merged->{_meta} //= +{};
+
+      $meta->{host} //= $log->{host};
+      if ($current->{client} || $current->{uid}) {
+        $meta->{start_date} //= $self->date_format($log->{date});
+      }
+      if ($current->{status} and $current->{status} eq 'sent') {
+        $meta->{success}++;
+        $meta->{end_date} = $self->date_format($log->{date});
+      }
+
+      $self->cli_output([[$merged, $log]]);
+    }
+    else {
+      $self->cli_output([$log]);
+    }
   }
 }
 
+sub merge_hash {
+  (my MY $self, my ($q, $hb)) = @_;
+  for my $key (keys %$hb) {
+    my $value = $hb->{$key};
+    if ( !exists $q->{$key} ) {
+      # 新規採用 / newly
+      $q->{$key} = $value;
+    } elsif ( !ref $q->{$key} ) { # 文字列 / string
+      # 配列リファレンスにして追加 / Addition as array reference
+      $q->{$key} = [$q->{$key}, $value];
+    } elsif ( ref $q->{$key} eq 'ARRAY' ) {
+      # 配列リファレンスに push / push to array reference
+      push @{$q->{$key}}, $value;
+    } else {
+      die "unknown situation."; # 想定外 / non-supposition
+    }
+  }
 
+  $q;
+}
+
+sub parse_following {
+  (my MY $self, my ($following, $information)) = @_;
+
+  my QRec $qrec = +{};
+
+  return $qrec unless $following =~ /=/;
+
+  my @param = map { split /=/, $_, 2 } split /,\s*/, $following;
+  if ( @param % 2 == 0 ) {
+    %$qrec = @param;
+  }
+  else {
+    warn "found odd number of key/value pair.";
+  }
+
+  if ( exists $qrec->{client} && defined $qrec->{client} ) {
+    my ($hostname, $ipaddr) = $qrec->{client} =~ /^(.+?)\[([0-9.]+)\]/;
+    $qrec->{client_hostname} = $hostname;
+    $qrec->{client_ipaddr}   = $ipaddr;
+  }
+  if ( $information && $qrec->{status} ) {
+    $qrec->{information} = $information;
+  }
+  for my $key ( qw(from to) ) {
+    if ( defined $qrec->{$key} && $qrec->{$key} =~ /^<(.*)>$/ ) {
+      $qrec->{$key} = $1;
+    }
+  }
+
+  $qrec;
+}
 
 sub date_format {
   (my MY $self, my $date_str) = @_;
