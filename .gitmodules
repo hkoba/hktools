@@ -1,6 +1,3 @@
 [submodule "MOP4Import"]
 	path = MOP4Import
 	url = ../perl-mop4import-declare.git
-[submodule "perl-App-oo_modulino_zsh_completion_helper"]
-	path = perl-App-oo_modulino_zsh_completion_helper
-	url = ../perl-App-oo_modulino_zsh_completion_helper.git
