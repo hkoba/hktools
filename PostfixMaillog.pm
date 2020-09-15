@@ -7,7 +7,12 @@ package PostfixMaillog;
 use strict;
 use warnings;
 use MOP4Import::Base::CLI_JSON -as_base
-  , [fields => [year => doc => "year of the first given logfile"]];
+  , [fields =>
+     [year => doc => "year of the first given logfile"],
+     qw/
+         _prev_mm_dd
+       /
+   ];
 
 use MOP4Import::Types
   (
@@ -53,9 +58,18 @@ sub parse {
     chomp;
     /$re_line/
       or do {warn "Can't parse: $_\n"; next};
-    $self->cli_output([\%+]);
+
+    my Log $log = \%+;
+
+    if ($self->skew_date($log->{date})) {
+      $self->{year}++;
+    }
+
+    $self->cli_output([$log]);
   }
 }
+
+
 
 sub date_format {
   (my MY $self, my $date_str) = @_;
@@ -67,6 +81,23 @@ sub date_format {
   my $mon = $month{$mon_name};
   return sprintf '%d/%02d/%02d %s', $self->{year}, $mon, $day, $hhmmss;
 }
+
+sub skew_date {
+  (my MY $self, my $date) = @_;
+
+  my $cur_mm_dd = join '/', (split m{/}, $self->date_format($date))[1,2];
+
+  # skew があるとは、前回の日時が記録されていて、
+  # なおかつ今回の日時が更に以前へと遡っている状態のこと
+  my $is_skew = _boolean_0_1($self->{_prev_mm_dd}
+                             && $cur_mm_dd lt $self->{_prev_mm_dd});
+
+  $self->{_prev_mm_dd} = $cur_mm_dd;
+
+  return $is_skew;
+}
+
+sub _boolean_0_1 { $_[0] ? 1 : 0 }
 
 MY->cli_run(\@ARGV) unless caller;
 
