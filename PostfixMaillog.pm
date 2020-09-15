@@ -33,6 +33,11 @@ use MOP4Import::Types
                           event event_msg/]],
   );
 
+sub after_configure_default {
+  (my MY $self) = @_;
+  $self->{year} //= (1900 + [localtime(time)]->[5]);
+}
+
 sub parse {
   (my MY $self, my @files) = @_;
   local @ARGV = @files;
@@ -44,6 +49,17 @@ sub parse {
       or do {warn "Can't parse: $_\n"; next};
     $self->cli_output([\%+]);
   }
+}
+
+sub date_format {
+  (my MY $self, my $date_str) = @_;
+  my ($mon_name, $day, $hhmmss) = split /\s+/, $date_str;
+  #    my ($hh, $mm, $ss) = map { sprintf '%d', $_ } split /:/, $hhmmss;
+  # sprintf に8進数と勘違いされないように
+  # We avoid that sprintf confuses it octet.
+  $day =~ s/^0//;
+  my $mon = $month{$mon_name};
+  return sprintf '%d/%02d/%02d %s', $self->{year}, $mon, $day, $hhmmss;
 }
 
 MY->cli_run(\@ARGV) unless caller;
