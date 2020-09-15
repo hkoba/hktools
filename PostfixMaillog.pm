@@ -9,6 +9,19 @@ use warnings;
 use MOP4Import::Base::CLI_JSON -as_base
   , [fields => [year => doc => "year of the first given logfile"]];
 
+use MOP4Import::Types
+  (
+    Log => [[fields => qw/date host service milter pid
+                          queue_id following
+                          event event_msg/]],
+    QRec => [[fields => qw/client client_hostname client_ipaddr
+                           status
+                           information
+                           from to
+                           uid
+                          /]],
+  );
+
 my %month = (qw(Jan 1 Feb 2 Mar 3 Apr 4 May 5 Jun 6 Jul 7 Aug 8 Sep 9 Oct 10 Nov 11 Dec 12));
 
 my $re_date = qr/[A-Z][a-z][a-z]  ?\d+ \d{2}:\d{2}:\d{2}/;
@@ -25,13 +38,6 @@ my $re_line
        | (?<event>\w+)(?<event_msg>\W.*)
        )
     }x;
-
-use MOP4Import::Types
-  (
-    Log => [[fields => qw/date host service milter pid
-                          queue_id following
-                          event event_msg/]],
-  );
 
 sub after_configure_default {
   (my MY $self) = @_;
