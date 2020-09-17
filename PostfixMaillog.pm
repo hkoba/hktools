@@ -24,11 +24,14 @@ use MOP4Import::Types
                           queue_id following
                           event event_msg/]],
     QRec => [[fields => qw/client client_hostname client_ipaddr
+                           log
+                           date queue_id
+                           message-id
+                           nrcpt
                            status
                            information
                            from to
                            uid
-                           _meta
                           /]],
     Meta => [[fields => qw/host start_date success end_date/]],
   );
@@ -58,11 +61,17 @@ sub after_configure_default {
 
 sub sql_schema {
   <<'END';
-create table if not exists incoming
-(queue_id text primary key
-, "from" text
-, status text
+create table if not exists all_event
+(date datetime not null
+, queue_id text
+, data json
+);
+
+create table if not exists mailfrom
+(date datetime not null
+, queue_id text
 , message_id text
+, "from" text
 , nrcpt integer
 , size integer
 , uid integer
@@ -70,10 +79,15 @@ create table if not exists incoming
 , client_hostname
 , client_ipaddr
 );
-create index incoming_from on incoming("from");
--- create unique index incoming_message_id on incoming(message_id);
-create table if not exists outgoing
-(queue_id text
+
+create index mailfrom_queue_id on mailfrom("queue_id");
+create index mailfrom_message_id on mailfrom("message_id");
+create index mailfrom_from on mailfrom("from");
+
+create table if not exists delivery
+(date datetime not null
+, queue_id text
+, message_id text
 , "to" text
 , status text
 , orig_to text
@@ -83,10 +97,13 @@ create table if not exists outgoing
 , dsn text
 , conn_use integer
 , information text
--- , primary key(queue_id, "to")
 );
-create index outgoing_queue_id on outgoing(queue_id);
-create index outgoing_to on outgoing("to");
+
+create index delivery_queue_id on delivery("queue_id");
+create index delivery_message_id on delivery("message_id");
+create index delivery_to on delivery("to");
+
+
 END
 }
 
@@ -154,19 +171,36 @@ sub cli_output {
   if ($self->{output} eq "sql" and @$list) {
     my $item = $list->[0];
     (my ($kind, $service, $queue_id), my QRec $current, my Log $log) = @$item;
-    unless ($self->{_known_queue_id}{$queue_id}++) {
-      # print $self->sql_encode(queue_id => $queue_id), ";\n";
-      print $self->sql_insert(incoming => $queue_id), ";\n";
+
+    if ($current->{'message-id'}) {
+      my QRec $qrec = $self->{_known_queue_id}{$queue_id} //= +{};
+      $qrec->{'message-id'} = $current->{'message-id'};
+      $qrec->{log} = $log;
     }
-    if ($kind eq '_unknown') {
-      # nop
+    elsif ($kind ne '_unknown'
+           and ($current->{to} or $current->{nrcpt})
+           and my QRec $qrec = $self->{_known_queue_id}{$queue_id}
+         ) {
+
+      $current->{'message-id'} = $qrec->{'message-id'};
+      $current->{queue_id} = $log->{queue_id};
+      $current->{date} = $log->{date};
+
+      if ($current->{to}) {
+        print $self->sql_insert(delivery => $queue_id, $current), ";\n";
+      }
+      elsif ($current->{nrcpt}) {
+        # XXX: client related fields
+        print $self->sql_insert(mailfrom => $queue_id, $current), ";\n";
+      }
     }
-    elsif ($current->{to}) {
-      print $self->sql_insert(outgoing => $queue_id, $current), ";\n";
+
+    {
+      delete $log->{queue_id};
+      my $date = delete $log->{date};
+      print $self->sql_insert(all_event => $queue_id, +{date => $date, data => $self->cli_encode_json($log)}), ";\n";
     }
-    elsif (keys %$current) {
-      print $self->sql_update(incoming => $queue_id, $current), ";\n";
-    }
+
   } else {
     $self->SUPER::cli_output($list);
   }
