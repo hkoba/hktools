@@ -1,7 +1,10 @@
 #!/usr/bin/env perl
 #
 # This code is heavily inspired from:
-# https://github.com/xtetsuji/p5-Mail-Log-Hashnize.git
+#   https://github.com/xtetsuji/p5-Mail-Log-Hashnize.git
+#
+# Also, some patterns are stolen from logwatch
+#   https://sourceforge.net/p/logwatch/git/ci/master/tree/scripts/services/postfix
 #
 package PostfixMaillog;
 use strict;
@@ -11,6 +14,7 @@ use MOP4Import::Base::CLI_JSON -as_base
      [year => doc => "year of the first given logfile"],
      qw/
          _prev_mm_dd
+         _known_queue_id
        /
    ];
 
@@ -52,6 +56,40 @@ sub after_configure_default {
   $self->{year} //= (1900 + [localtime(time)]->[5]);
 }
 
+sub sql_schema {
+  <<'END';
+create table if not exists incoming
+(queue_id text primary key
+, "from" text
+, status text
+, message_id text
+, nrcpt integer
+, size integer
+, uid integer
+, client text
+, client_hostname
+, client_ipaddr
+);
+create index incoming_from on incoming("from");
+-- create unique index incoming_message_id on incoming(message_id);
+create table if not exists outgoing
+(queue_id text
+, "to" text
+, status text
+, orig_to text
+, relay text
+, delay integer
+, delays text
+, dsn text
+, conn_use integer
+, information text
+-- , primary key(queue_id, "to")
+);
+create index outgoing_queue_id on outgoing(queue_id);
+create index outgoing_to on outgoing("to");
+END
+}
+
 sub parse {
   (my MY $self, my @files) = @_;
   local @ARGV = @files;
@@ -73,6 +111,8 @@ sub parse {
 
     $acceptor->($self, $log);
   }
+
+  return; # To avoid last $self->cli_output([""])
 }
 
 sub log_accept_postfix {
@@ -84,23 +124,84 @@ sub log_accept_postfix {
     and $log->{following} =~ s/\s\(.+\)$//;
 
   if ($log->{following} =~ s/^(?<key>\w+): (?<val>[^;]+); //) {
+    # ex. reject: RCPT from unknown...
     my @other = ($+{key} => $+{val});
     # ここで返るのは QRec じゃない。厳格に行くべきか悩ましい。
     my $unknown = $self->extract_fromtolike_pairs([split " ", $log->{following}], @other);
 
-    $self->cli_output([[unknown => $log->{queue_id}, $unknown]]);
+    $self->cli_output([[_unknown => $log->{service}, $log->{queue_id}, $unknown, $log]]);
   } else {
     my QRec $current = do {
       if ($log->{following} =~ /^from=<(.*?)>, status=expired, returned to sender$/) {
         +{from => $1, status => 'expired'};
+      }
+      elsif ($log->{following} =~ /^host \S*\[\S*\] said: 4\d\d/) {
+        return;
       }
       else {
         $self->parse_following($log->{following}, $information);
       }
     };
 
-    $self->cli_output([[$log->{queue_id}, $current]]);
+    $self->cli_output([[service => $log->{service}, $log->{queue_id}, $current, $log]]);
   }
+}
+
+sub cli_output {
+  (my MY $self, my $list) = @_;
+  if ($self->{output} eq "sql" and @$list) {
+    my $item = $list->[0];
+    (my ($kind, $service, $queue_id), my QRec $current, my Log $log) = @$item;
+    unless ($self->{_known_queue_id}{$queue_id}++) {
+      # print $self->sql_encode(queue_id => $queue_id), ";\n";
+      print $self->sql_insert(incoming => $queue_id), ";\n";
+    }
+    if ($kind eq '_unknown') {
+      # nop
+    }
+    elsif ($current->{to}) {
+      print $self->sql_insert(outgoing => $queue_id, $current), ";\n";
+    }
+    elsif (keys %$current) {
+      print $self->sql_update(incoming => $queue_id, $current), ";\n";
+    }
+  } else {
+    $self->SUPER::cli_output($list);
+  }
+}
+
+sub sql_insert {
+  (my MY $self, my ($tabName, $queue_id), my QRec $record) = @_;
+  my @keys = $record ? sort keys %$record : ();
+  "INSERT into $tabName(".join(", ", queue_id => map {$self->sql_safe_keyword($_)} @keys).")"
+    . " VALUES(".join(", ", map {$self->sql_quote($_)} $queue_id, map {$record->{$_}} @keys).")"
+}
+
+sub sql_update {
+  (my MY $self, my ($tabName, $queue_id), my QRec $record) = @_;
+  my @keys = $record ? sort keys %$record : ();
+  "UPDATE $tabName SET ".join(", ", map {
+    $self->sql_safe_keyword($_). " = " . $self->sql_quote($record->{$_})
+  } @keys)
+    ." WHERE queue_id = ".$self->sql_quote($queue_id);
+}
+
+sub sql_encode {
+  (my MY $self, my ($encKey, $value)) = @_;
+  "INSERT or IGNORE into $encKey(".join(", ", $encKey).")"
+    . "VALUES(".join(", ", map {$self->sql_quote($_)} $value).")"
+}
+
+sub sql_safe_keyword {
+  (my MY $self, my $str) = @_;
+  $str =~ s/^(from|to)\z/"$1"/g;
+  $str =~ s/-/_/gr;
+}
+
+sub sql_quote {
+  (my MY $self, my $str) = @_;
+  $str =~ s{\'}{''}g;
+  qq!'$str'!;
 }
 
 sub parse_following {
