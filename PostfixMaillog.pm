@@ -238,7 +238,7 @@ sub extract_fromtolike_pairs {
     warn "found odd number of key/value pair in $_";
   }
 
-  for my $key ( qw(from to) ) {
+  for my $key ( qw(from to orig_to) ) {
     if ( defined $qrec->{$key} && $qrec->{$key} =~ /^<(.*)>$/ ) {
       $qrec->{$key} = $1;
     }
