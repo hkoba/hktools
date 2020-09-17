@@ -16,7 +16,7 @@ use MOP4Import::Base::CLI_JSON -as_base
 
 use MOP4Import::Types
   (
-    Log => [[fields => qw/date host service milter pid
+    Log => [[fields => qw/date host program service pid
                           queue_id following
                           event event_msg/]],
     QRec => [[fields => qw/client client_hostname client_ipaddr
@@ -38,7 +38,8 @@ my $re_line
        [ ]
        (?<host>$re_host)
        [ ]
-       (?:postfix/(?<service>[-\w]+)|(?<milter>\w+))\[(?<pid>\d+)\]:
+       (?:(?<program>\w+) (?:/ (?<service>[-\w]+))?
+       ) \[(?<pid>\d+)\]:
        [ ]
        (?:
          (?<queue_id>[0-9A-F]+):\s*(?<following>.*)
@@ -56,7 +57,6 @@ sub parse {
   local @ARGV = @files;
   local $_;
 
-  my (%queue);
   while (<<>>) {
     chomp;
     /$re_line/
@@ -68,71 +68,47 @@ sub parse {
       $self->{year}++;
     }
 
-    if ($log->{service} and defined $log->{queue_id}) {
+    my $acceptor = $self->can("log_accept_$log->{program}")
+      or next;
 
-      my ($information) = $log->{following} =~ /\s*\((.+)\)$/
-        and $log->{following} =~ s/\s\(.+\)$//;
-
-      my QRec $current = $self->parse_following($log->{following}, $information);
-
-      my QRec $merged = $self->merge_hash($queue{$log->{queue_id}} //= +{}
-                                          , $current
-                                        );
-
-      my Meta $meta = $merged->{_meta} //= +{};
-
-      $meta->{host} //= $log->{host};
-      if ($current->{client} || $current->{uid}) {
-        $meta->{start_date} //= $self->date_format($log->{date});
-      }
-      if ($current->{status} and $current->{status} eq 'sent') {
-        $meta->{success}++;
-        $meta->{end_date} = $self->date_format($log->{date});
-      }
-
-      $self->cli_output([[$merged, $log]]);
-    }
-    else {
-      $self->cli_output([$log]);
-    }
+    $acceptor->($self, $log);
   }
 }
 
-sub merge_hash {
-  (my MY $self, my ($q, $hb)) = @_;
-  for my $key (keys %$hb) {
-    my $value = $hb->{$key};
-    if ( !exists $q->{$key} ) {
-      # 新規採用 / newly
-      $q->{$key} = $value;
-    } elsif ( !ref $q->{$key} ) { # 文字列 / string
-      # 配列リファレンスにして追加 / Addition as array reference
-      $q->{$key} = [$q->{$key}, $value];
-    } elsif ( ref $q->{$key} eq 'ARRAY' ) {
-      # 配列リファレンスに push / push to array reference
-      push @{$q->{$key}}, $value;
-    } else {
-      die "unknown situation."; # 想定外 / non-supposition
-    }
-  }
+sub log_accept_postfix {
+  (my MY $self, my Log $log) = @_;
 
-  $q;
+  return unless $log->{service} and defined $log->{queue_id};
+
+  my ($information) = $log->{following} =~ /\s*\((.+)\)$/
+    and $log->{following} =~ s/\s\(.+\)$//;
+
+  if ($log->{following} =~ s/^(?<key>\w+): (?<val>[^;]+); //) {
+    my @other = ($+{key} => $+{val});
+    # ここで返るのは QRec じゃない。厳格に行くべきか悩ましい。
+    my $unknown = $self->extract_fromtolike_pairs([split " ", $log->{following}], @other);
+
+    $self->cli_output([[unknown => $log->{queue_id}, $unknown]]);
+  } else {
+    my QRec $current = do {
+      if ($log->{following} =~ /^from=<(.*?)>, status=expired, returned to sender$/) {
+        +{from => $1, status => 'expired'};
+      }
+      else {
+        $self->parse_following($log->{following}, $information);
+      }
+    };
+
+    $self->cli_output([[$log->{queue_id}, $current]]);
+  }
 }
 
 sub parse_following {
   (my MY $self, my ($following, $information)) = @_;
 
-  my QRec $qrec = +{};
+  return +{} unless $following =~ /=/;
 
-  return $qrec unless $following =~ /=/;
-
-  my @param = map { split /=/, $_, 2 } split /,\s*/, $following;
-  if ( @param % 2 == 0 ) {
-    %$qrec = @param;
-  }
-  else {
-    warn "found odd number of key/value pair.";
-  }
+  my QRec $qrec = $self->extract_fromtolike_pairs([split /,\s*/, $following]);
 
   if ( exists $qrec->{client} && defined $qrec->{client} ) {
     my ($hostname, $ipaddr) = $qrec->{client} =~ /^(.+?)\[([0-9.]+)\]/;
@@ -142,6 +118,23 @@ sub parse_following {
   if ( $information && $qrec->{status} ) {
     $qrec->{information} = $information;
   }
+
+  $qrec;
+}
+
+sub extract_fromtolike_pairs {
+  (my MY $self, my $wordList, my @other) = @_;
+
+  my QRec $qrec = +{};
+
+  my @param = map { split /=/, $_, 2 } @$wordList;
+  if ( @param % 2 == 0 ) {
+    %$qrec = (@param, @other);
+  }
+  else {
+    warn "found odd number of key/value pair in $_";
+  }
+
   for my $key ( qw(from to) ) {
     if ( defined $qrec->{$key} && $qrec->{$key} =~ /^<(.*)>$/ ) {
       $qrec->{$key} = $1;
