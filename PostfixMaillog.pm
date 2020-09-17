@@ -102,6 +102,8 @@ sub parse {
 
     my Log $log = +{%+};
 
+    $log->{date} = $self->date_format($log->{date});
+
     if ($self->skew_date($log->{date})) {
       $self->{year}++;
     }
@@ -253,13 +255,13 @@ sub date_format {
   # We avoid that sprintf confuses it octet.
   $day =~ s/^0//;
   my $mon = $month{$mon_name};
-  return sprintf '%d/%02d/%02d %s', $self->{year}, $mon, $day, $hhmmss;
+  return sprintf '%d-%02d-%02d %s', $self->{year}, $mon, $day, $hhmmss;
 }
 
 sub skew_date {
   (my MY $self, my $date) = @_;
 
-  my $cur_mm_dd = join '/', (split m{/}, $self->date_format($date))[1,2];
+  my $cur_mm_dd = join '-', (split m{-}, $date)[1,2];
 
   # skew があるとは、前回の日時が記録されていて、
   # なおかつ今回の日時が更に以前へと遡っている状態のこと
