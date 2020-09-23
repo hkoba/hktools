@@ -8,7 +8,7 @@
 #
 package PostfixMaillog;
 use strict;
-use warnings;
+use warnings FATAL => qw/all/;
 use MOP4Import::Base::CLI_JSON -as_base
   , [fields =>
      [year => doc => "year of the first given logfile"],
@@ -58,12 +58,16 @@ sub after_configure_default {
   (my MY $self) = @_;
   $self->{year} //= (1900 + [localtime(time)]->[5]);
 }
+; # ←これを入れないとインデントが狂う…困ったのぅ…
 
 sub sql_schema {
   <<'END';
 create table if not exists all_event
 (date datetime not null
 , queue_id text
+, program text
+, service text
+, pid integer
 , data json
 );
 
@@ -133,6 +137,11 @@ sub parse {
 
   return; # To avoid last $self->cli_output([""])
 }
+; # ←これを入れないとインデントが狂う…困ったのぅ…
+sub fetch_queue_rec {
+  (my MY $self, my $queue_id) = @_;
+  $self->{_known_queue_id}{$queue_id} //= +{};
+}
 
 sub log_accept_postfix {
   (my MY $self, my Log $log) = @_;
@@ -151,7 +160,17 @@ sub log_accept_postfix {
     $self->cli_output([[_unknown => $log->{service}, $log->{queue_id}, $unknown, $log]]);
   } else {
     my QRec $current = do {
-      if ($log->{following} =~ /^from=<(.*?)>, status=expired, returned to sender$/) {
+      if ($log->{service} eq "pickup") {
+        my ($uid, $from) = $log->{following} =~ m{^uid=(\d+) from=<([^>]*)>} or do {
+          warn "Can't parse pickup log: $log->{following}";
+          return;
+        };
+        my QRec $qrec = $self->fetch_queue_rec($log->{queue_id});
+        $qrec->{uid} = $uid;
+        $qrec->{from} = $from;
+        $qrec;
+      }
+      elsif ($log->{following} =~ /^from=<(.*?)>, status=expired, returned to sender$/) {
         +{from => $1, status => 'expired'};
       }
       elsif ($log->{following} =~ /^host \S*\[\S*\] said: 4\d\d/) {
@@ -173,9 +192,15 @@ sub cli_output {
     (my ($kind, $service, $queue_id), my QRec $current, my Log $log) = @$item;
 
     if ($current->{'message-id'}) {
-      my QRec $qrec = $self->{_known_queue_id}{$queue_id} //= +{};
+      my QRec $qrec = $self->fetch_queue_rec($queue_id);
       $qrec->{'message-id'} = $current->{'message-id'};
       $qrec->{log} = $log;
+    }
+    if ($current->{client}) {
+      my QRec $qrec = $self->fetch_queue_rec($queue_id);
+      $qrec->{client} = $current->{client};
+      $qrec->{client_hostname} = $current->{client_hostname};
+      $qrec->{client_ipaddr} = $current->{client_ipaddr};
     }
     elsif ($kind ne '_unknown'
            and ($current->{to} or $current->{nrcpt})
@@ -190,15 +215,33 @@ sub cli_output {
         print $self->sql_insert(delivery => $queue_id, $current), ";\n";
       }
       elsif ($current->{nrcpt}) {
-        # XXX: client related fields
-        print $self->sql_insert(mailfrom => $queue_id, $current), ";\n";
+        print $self->sql_insert(mailfrom => $queue_id, +{
+          %$current,
+          uid => $qrec->{uid},
+          (defined $qrec->{client} ? (
+            client => $qrec->{client},
+            client_hostname => $qrec->{client_hostname},
+            client_ipaddr => $qrec->{client_ipaddr},
+          ) : ())
+        }), ";\n";
       }
+      else {
+        die "Not reachable";
+      }
+    }
+    else {
+      # Unknown
     }
 
     {
       delete $log->{queue_id};
       my $date = delete $log->{date};
-      print $self->sql_insert(all_event => $queue_id, +{date => $date, data => $self->cli_encode_json($log)}), ";\n";
+      print $self->sql_insert(all_event => $queue_id, +{
+        date => $date, data => $self->cli_encode_json($log)
+        , program => $log->{program}
+        , service => $log->{service}
+        , pid => $log->{pid}
+      }), ";\n";
     }
 
   } else {
@@ -236,6 +279,8 @@ sub sql_safe_keyword {
 
 sub sql_quote {
   (my MY $self, my $str) = @_;
+  return 'NULL' unless defined $str;
+  return $str if $str =~ /^\d+\z/;
   $str =~ s{\'}{''}g;
   qq!'$str'!;
 }
