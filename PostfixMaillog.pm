@@ -294,15 +294,19 @@ sub parse_following {
   my QRec $qrec = $self->extract_fromtolike_pairs([split /,\s*/, $following]);
 
   if ( exists $qrec->{client} && defined $qrec->{client} ) {
-    my ($hostname, $ipaddr) = $qrec->{client} =~ /^(.+?)\[([0-9.]+)\]/;
-    $qrec->{client_hostname} = $hostname;
-    $qrec->{client_ipaddr}   = $ipaddr;
+    ($qrec->{client_hostname}, $qrec->{client_ipaddr})
+      = $self->extract_client_hostname_ipaddr($qrec->{client});
   }
   if ( $information && $qrec->{status} ) {
     $qrec->{information} = $information;
   }
 
   $qrec;
+}
+
+sub extract_client_hostname_ipaddr {
+  (my MY $self, my $client) = @_;
+  my ($hostname, $ipaddr, $port) = $client =~ /^(.+?)\[([0-9.]+)\](?::(\d+))?/;
 }
 
 sub extract_fromtolike_pairs {
