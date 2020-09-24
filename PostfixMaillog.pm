@@ -15,6 +15,7 @@ use MOP4Import::Base::CLI_JSON -as_base
      qw/
          _prev_mm_dd
          _known_queue_id
+         _smtpd_connection
        /
    ];
 
@@ -70,6 +71,39 @@ create table if not exists all_event
 , pid integer
 , data json
 );
+
+create table if not exists smtpd_connection
+(date datetime not null
+, finished datetime
+, pid integer
+, client_hostname text
+, client_ipaddr text
+, client_port integer
+, starttls_success integer
+, starttls integer
+, helo_success integer
+, helo integer
+, ehlo_success integer
+, ehlo integer
+, auth_success integer
+, auth integer
+, mail integer
+, rcpt_success integer
+, rcpt integer
+, data_success integer
+, data integer
+, bdat_success integer
+, bdat integer
+, rset integer
+, quit integer
+, commands_success integer
+, commands integer
+, unknown_success integer
+, unknown integer
+);
+
+create index smtpd_connection_date on smtpd_connection(date);
+create index smtpd_connection_client_ipaddr on smtpd_connection(client_ipaddr);
 
 create table if not exists mailfrom
 (date datetime not null
@@ -147,7 +181,41 @@ sub fetch_queue_rec {
 sub log_accept_postfix {
   (my MY $self, my Log $log) = @_;
 
-  return unless $log->{service} and defined $log->{queue_id};
+  return unless $log->{service};
+
+  if ($log->{service} eq "smtpd" and $log->{event}) {
+    if ($log->{event} eq "connect"
+        and my ($client) = $log->{event_msg} =~ m{^ from (\S*)}s) {
+      $self->{_smtpd_connection}{$client} = $log;
+    } elsif ($log->{event} eq "disconnect"
+             and ($client, my $stats) = $log->{event_msg} =~ m{^ from (\S*) (.*)}s) {
+      if (my Log $started = delete $self->{_smtpd_connection}{$client}) {
+        my $conRec = {map {
+          #
+          # Parse ehlo=1 mail=1 rcpt=0/1 rset=1 quit=1 commands=4/5
+          #
+          my ($k, $v) = split /=/, $_, 2;
+          my @okall = split m{/}, $v;
+          if (@okall == 2) {
+            ($k."_success" => $okall[0]
+             , $k => $okall[1])
+          } else {
+            ($k, $v);
+          }
+        } split " ", $stats};
+        $conRec->{date} = $started->{date};
+        $conRec->{pid}  = $started->{pid};
+        $conRec->{finished} = $log->{date};
+        ($conRec->{client_hostname}, $conRec->{client_ipaddr}, , $conRec->{client_port})
+          = $self->extract_client_hostname_ipaddr($client);
+        $self->cli_output([[connection => $conRec]]);
+      }
+    }
+  }
+
+  if (not defined $log->{queue_id}) {
+    return;
+  }
 
   my ($information) = $log->{following} =~ /\s*\((.+)\)$/
     and $log->{following} =~ s/\s\(.+\)$//;
@@ -183,6 +251,10 @@ sub log_accept_postfix {
     };
 
     $self->cli_output([[service => $log->{service}, $log->{queue_id}, $current, $log]]);
+
+    if ($log->{service} eq "qmgr" and $log->{following} eq "removed" and $log->{queue_id}) {
+      delete $self->{_known_queue_id}{$log->{queue_id}};
+    }
   }
 }
 
@@ -190,7 +262,16 @@ sub cli_output {
   (my MY $self, my $list) = @_;
   if ($self->{output} eq "sql" and @$list) {
     my $item = $list->[0];
-    (my ($kind, $service, $queue_id), my QRec $current, my Log $log) = @$item;
+
+    my ($kind, @rest) = @$item;
+
+    if ($kind eq "connection") {
+      my ($conRec) = @rest;
+      print $self->sql_insert(smtpd_connection => $conRec), ";\n";
+      return;
+    }
+
+    (my ($service, $queue_id), my QRec $current, my Log $log) = @rest;
 
     if ($current->{'message-id'}) {
       my QRec $qrec = $self->fetch_queue_rec($queue_id);
