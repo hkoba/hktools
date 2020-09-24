@@ -45,7 +45,7 @@ my $re_line
        [ ]
        (?<host>$re_host)
        [ ]
-       (?:(?<program>\w+) (?:/ (?<service>[-\w]+))?
+       (?:(?<program>[-\w]+) (?:/ (?<service>[-\w]+))?
        ) \[(?<pid>\d+)\]:
        [ ]
        (?:
@@ -129,6 +129,7 @@ sub parse {
       $self->{year}++;
     }
 
+    # spamass-milter とかはここで捨ててしまっている。
     my $acceptor = $self->can("log_accept_$log->{program}")
       or next;
 
