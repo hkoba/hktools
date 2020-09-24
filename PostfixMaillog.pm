@@ -88,6 +88,7 @@ create table if not exists smtpd_connection
 , ehlo integer
 , auth_success integer
 , auth integer
+, mail_success integer
 , mail integer
 , rcpt_success integer
 , rcpt integer
@@ -96,6 +97,10 @@ create table if not exists smtpd_connection
 , bdat_success integer
 , bdat integer
 , rset integer
+, vrfy_success integer
+, vrfy integer
+, noop_success integer
+, noop integer
 , quit integer
 , commands_success integer
 , commands integer
