@@ -346,8 +346,8 @@ sub cli_output {
 }
 
 sub sql_insert_with_queue_id {
-  (my MY $self, my ($tabName, $queue_id), my QRec $record) = @_;
-  $self->sql_insert($tabName, [queue_id => $queue_id], $record);
+  (my MY $self, my ($tabName, $queue_id), my QRec $record, my @other) = @_;
+  $self->sql_insert($tabName, [queue_id => $queue_id], $record, @other);
 }
 
 sub sql_insert {
