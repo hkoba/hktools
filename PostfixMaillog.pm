@@ -32,6 +32,7 @@ use MOP4Import::Types
                            status
                            information
                            from to
+                           forwarded_as
                            uid
                           /]],
     Meta => [[fields => qw/host start_date success end_date/]],
@@ -134,6 +135,7 @@ create table if not exists delivery
 , delays text
 , dsn text
 , conn_use integer
+, forwarded_as text
 , information text
 );
 
@@ -249,6 +251,13 @@ sub log_accept_postfix {
         $self->parse_following($log->{following}, $information);
       }
     };
+
+    if ($current->{status} and $current->{status} eq "sent"
+        and $current->{information} =~ /^forwarded as (\S+)/) {
+
+      $current->{forwarded_as} = $1;
+      delete $current->{information};
+    }
 
     $self->cli_output([[service => $log->{service}, $log->{queue_id}, $current, $log]]);
 
