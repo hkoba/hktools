@@ -213,10 +213,10 @@ sub cli_output {
       $current->{date} = $log->{date};
 
       if ($current->{to}) {
-        print $self->sql_insert(delivery => $queue_id, $current), ";\n";
+        print $self->sql_insert_with_queue_id(delivery => $queue_id, $current), ";\n";
       }
       elsif ($current->{nrcpt}) {
-        print $self->sql_insert(mailfrom => $queue_id, +{
+        print $self->sql_insert_with_queue_id(mailfrom => $queue_id, +{
           %$current,
           uid => $qrec->{uid},
           (defined $qrec->{client} ? (
@@ -237,7 +237,7 @@ sub cli_output {
     {
       delete $log->{queue_id};
       my $date = delete $log->{date};
-      print $self->sql_insert(all_event => $queue_id, +{
+      print $self->sql_insert_with_queue_id(all_event => $queue_id, +{
         date => $date, data => $self->cli_encode_json($log)
         , program => $log->{program}
         , service => $log->{service}
@@ -250,11 +250,32 @@ sub cli_output {
   }
 }
 
-sub sql_insert {
+sub sql_insert_with_queue_id {
   (my MY $self, my ($tabName, $queue_id), my QRec $record) = @_;
-  my @keys = $record ? sort keys %$record : ();
-  "INSERT into $tabName(".join(", ", queue_id => map {$self->sql_safe_keyword($_)} @keys).")"
-    . " VALUES(".join(", ", map {$self->sql_quote($_)} $queue_id, map {$record->{$_}} @keys).")"
+  $self->sql_insert($tabName, [queue_id => $queue_id], $record);
+}
+
+sub sql_insert {
+  (my MY $self, my ($tabName, @item)) = @_;
+  my (@keys, @values);
+  foreach my $item (@item) {
+    if (ref $item eq 'ARRAY') {
+      my @kv = @$item;
+      while (my ($key, $value) = splice @kv, 0, 2) {
+        push @keys, $self->sql_safe_keyword($key);
+        push @values, $self->sql_quote($value)
+      }
+    }
+    elsif (ref $item eq 'HASH') {
+      foreach my $key (sort keys %$item) {
+        push @keys, $self->sql_safe_keyword($key);
+        push @values, $self->sql_quote($item->{$key});
+      }
+    }
+  }
+
+  "INSERT into $tabName(".join(", ", @keys).")"
+    . " VALUES(".join(", ", @values).")"
 }
 
 sub sql_update {
