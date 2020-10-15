@@ -15,7 +15,7 @@ use warnings;
     chomp;
     m/(\[GH \#(?<issue>\d+)\]|GH-(?<issue>\d+))/
       or next;
-    s/^\s*For\s+//
+    s/^\s*(For|Fix(es)?)\s+//
       or next;
     my @issues;
     while (s/^\s*(\[GH \#(?<issue>\d+)\]|GH-(?<issue>\d+))//) {
