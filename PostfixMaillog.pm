@@ -9,8 +9,10 @@
 package PostfixMaillog;
 use strict;
 use warnings FATAL => qw/all/;
+use utf8;
 use MOP4Import::Base::CLI_JSON -as_base
   , [fields =>
+     ['generic-only', doc => "postfix 向けなどの固有解析をしない"],
      [year => doc => "year of the first given logfile"],
      qw/
          _prev_mm_dd
@@ -152,7 +154,7 @@ create index delivery_to on delivery("to");
 END
 }
 
-sub parse {
+sub parse :Doc(maillog 形式の log を parse. --output=sql なら SQL へと変換する) {
   (my MY $self, my @files) = @_;
   local @ARGV = @files;
   local $_;
@@ -170,6 +172,11 @@ sub parse {
       $self->{year}++;
     }
 
+    if ($self->{'generic-only'}) {
+      $self->cli_output([$log]);
+      next;
+    }
+
     # spamass-milter とかはここで捨ててしまっている。
     my $acceptor = $self->can("log_accept_$log->{program}")
       or next;
@@ -185,7 +192,7 @@ sub fetch_queue_rec {
   $self->{_known_queue_id}{$queue_id} //= +{};
 }
 
-sub log_accept_postfix {
+sub log_accept_postfix :Doc(postfix/$service 行の Log レコードを更に解析して出力) {
   (my MY $self, my Log $log) = @_;
 
   return unless $log->{service};
@@ -420,7 +427,7 @@ sub parse_following {
   $qrec;
 }
 
-sub extract_client_hostname_ipaddr {
+sub extract_client_hostname_ipaddr :Doc(smtpd connect from を分解) {
   (my MY $self, my $client) = @_;
   my ($hostname, $ipaddr, $port) = $client =~ /^(.+?)\[([0-9.]+)\](?::(\d+))?/;
 }
@@ -447,7 +454,7 @@ sub extract_fromtolike_pairs {
   $qrec;
 }
 
-sub date_format {
+sub date_format :Doc(maillog 形式(ex. Jan  6 03:33:55) を iso8601形式へ) {
   (my MY $self, my $date_str) = @_;
   my ($mon_name, $day, $hhmmss) = split /\s+/, $date_str;
   #    my ($hh, $mm, $ss) = map { sprintf '%d', $_ } split /:/, $hhmmss;
