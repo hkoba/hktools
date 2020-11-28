@@ -380,21 +380,6 @@ sub sql_insert {
     . " VALUES(".join(", ", @values).")"
 }
 
-sub sql_update {
-  (my MY $self, my ($tabName, $queue_id), my QRec $record) = @_;
-  my @keys = $record ? sort keys %$record : ();
-  "UPDATE $tabName SET ".join(", ", map {
-    $self->sql_safe_keyword($_). " = " . $self->sql_quote($record->{$_})
-  } @keys)
-    ." WHERE queue_id = ".$self->sql_quote($queue_id);
-}
-
-sub sql_encode {
-  (my MY $self, my ($encKey, $value)) = @_;
-  "INSERT or IGNORE into $encKey(".join(", ", $encKey).")"
-    . "VALUES(".join(", ", map {$self->sql_quote($_)} $value).")"
-}
-
 sub sql_safe_keyword {
   (my MY $self, my $str) = @_;
   $str =~ s/^(from|to)\z/"$1"/g;
