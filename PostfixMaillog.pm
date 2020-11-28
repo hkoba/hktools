@@ -64,7 +64,7 @@ sub after_configure_default {
 }
 ; # ←これを入れないとインデントが狂う…困ったのぅ…
 
-sub sql_schema {
+sub sql_schema :Doc(--output=sql 用のテーブル定義を返す) {
   <<'END';
 create table if not exists all_event
 (date datetime not null
@@ -187,12 +187,12 @@ sub parse :Doc(maillog 形式の log を parse. --output=sql なら SQL へと�
   return; # To avoid last $self->cli_output([""])
 }
 ; # ←これを入れないとインデントが狂う…困ったのぅ…
-sub fetch_queue_rec {
+sub cached_qrec :Doc(キャッシュされた queue_id record の取り出し) {
   (my MY $self, my $queue_id) = @_;
   $self->{_known_queue_id}{$queue_id} //= +{};
 }
 
-sub log_accept_postfix :Doc(postfix/$service 行の Log レコードを更に解析して出力) {
+sub log_accept_postfix :Doc(maillog の "postfix/$service" 行から取り出した Log レコードを更に解析して出力) {
   (my MY $self, my Log $log) = @_;
 
   return unless $log->{service};
@@ -221,7 +221,7 @@ sub log_accept_postfix :Doc(postfix/$service 行の Log レコードを更に解
         $conRec->{pid}  = $started->{pid};
         $conRec->{finished} = $log->{date};
         ($conRec->{client_hostname}, $conRec->{client_ipaddr}, , $conRec->{client_port})
-          = $self->extract_client_hostname_ipaddr($client);
+          = $self->match_client($client);
         $self->cli_output([[connection => $conRec]]);
       }
     }
@@ -238,7 +238,7 @@ sub log_accept_postfix :Doc(postfix/$service 行の Log レコードを更に解
     # ex. reject: RCPT from unknown...
     my @other = ($+{key} => $+{val});
     # ここで返るのは QRec じゃない。厳格に行くべきか悩ましい。
-    my $unknown = $self->extract_fromtolike_pairs([split " ", $log->{following}], @other);
+    my $unknown = $self->match_fromtolikes([split " ", $log->{following}], @other);
 
     $self->cli_output([[_unknown => $log->{service}, $log->{queue_id}, $unknown, $log]]);
   } else {
@@ -248,7 +248,7 @@ sub log_accept_postfix :Doc(postfix/$service 行の Log レコードを更に解
           warn "Can't parse pickup log: $log->{following}";
           return;
         };
-        my QRec $qrec = $self->fetch_queue_rec($log->{queue_id});
+        my QRec $qrec = $self->cached_qrec($log->{queue_id});
         $qrec->{uid} = $uid;
         $qrec->{from} = $from;
         $qrec;
@@ -279,7 +279,7 @@ sub log_accept_postfix :Doc(postfix/$service 行の Log レコードを更に解
   }
 }
 
-sub cli_output {
+sub cli_output :Doc(--output=sql 用のカスタム出力ハンドラー) {
   (my MY $self, my $list) = @_;
   if ($self->{output} eq "sql" and @$list) {
     my $item = $list->[0];
@@ -295,12 +295,12 @@ sub cli_output {
     (my ($service, $queue_id), my QRec $current, my Log $log) = @rest;
 
     if ($current->{'message-id'}) {
-      my QRec $qrec = $self->fetch_queue_rec($queue_id);
+      my QRec $qrec = $self->cached_qrec($queue_id);
       $qrec->{'message-id'} = $current->{'message-id'};
       $qrec->{log} = $log;
     }
     if ($current->{client}) {
-      my QRec $qrec = $self->fetch_queue_rec($queue_id);
+      my QRec $qrec = $self->cached_qrec($queue_id);
       $qrec->{client} = $current->{client};
       $qrec->{client_hostname} = $current->{client_hostname};
       $qrec->{client_ipaddr} = $current->{client_ipaddr};
@@ -352,12 +352,12 @@ sub cli_output {
   }
 }
 
-sub sql_insert_with_queue_id {
+sub sql_insert_with_queue_id :Doc(queue_id があるテーブル向けの insert 文生成) {
   (my MY $self, my ($tabName, $queue_id), my QRec $record, my @other) = @_;
   $self->sql_insert($tabName, [queue_id => $queue_id], $record, @other);
 }
 
-sub sql_insert {
+sub sql_insert :Doc(SQL の insert 文を生成) {
   (my MY $self, my ($tabName, @item)) = @_;
   my (@keys, @values);
   foreach my $item (@item) {
@@ -380,13 +380,13 @@ sub sql_insert {
     . " VALUES(".join(", ", @values).")"
 }
 
-sub sql_safe_keyword {
+sub sql_safe_keyword :Doc(from, to など SQL の予約語と衝突するキーワードを "" で quote) {
   (my MY $self, my $str) = @_;
   $str =~ s/^(from|to)\z/"$1"/g;
   $str =~ s/-/_/gr;
 }
 
-sub sql_quote {
+sub sql_quote :Doc(SQLite の insert 文向けに調整した, 簡易的な SQL quote) {
   (my MY $self, my $str) = @_;
   return 'NULL' unless defined $str;
   return $str if $str =~ /^\d+\z/;
@@ -394,16 +394,16 @@ sub sql_quote {
   qq!'$str'!;
 }
 
-sub parse_following {
+sub parse_following :Doc(postfix ログの queue_id: 以後の部分を parse) {
   (my MY $self, my ($following, $information)) = @_;
 
   return +{} unless $following =~ /=/;
 
-  my QRec $qrec = $self->extract_fromtolike_pairs([split /,\s*/, $following]);
+  my QRec $qrec = $self->match_fromtolikes([split /,\s*/, $following]);
 
   if ( exists $qrec->{client} && defined $qrec->{client} ) {
     ($qrec->{client_hostname}, $qrec->{client_ipaddr})
-      = $self->extract_client_hostname_ipaddr($qrec->{client});
+      = $self->match_client($qrec->{client});
   }
   if ( $information && $qrec->{status} ) {
     $qrec->{information} = $information;
@@ -412,12 +412,12 @@ sub parse_following {
   $qrec;
 }
 
-sub extract_client_hostname_ipaddr :Doc(smtpd connect from を分解) {
+sub match_client :Doc(smtpd connect from を分解) {
   (my MY $self, my $client) = @_;
   my ($hostname, $ipaddr, $port) = $client =~ /^(.+?)\[([0-9.]+)\](?::(\d+))?/;
 }
 
-sub extract_fromtolike_pairs {
+sub match_fromtolikes :Doc(wordlist を key=val ペアへ分解後に from/toを認識) {
   (my MY $self, my $wordList, my @other) = @_;
 
   my QRec $qrec = +{};
@@ -450,7 +450,7 @@ sub date_format :Doc(maillog 形式(ex. Jan  6 03:33:55) を iso8601形式へ) {
   return sprintf '%d-%02d-%02d %s', $self->{year}, $mon, $day, $hhmmss;
 }
 
-sub skew_date {
+sub skew_date : Doc(与えられた日時が（前回より）遡っていることを検出したら真を返す) {
   (my MY $self, my $date) = @_;
 
   my $cur_mm_dd = join '-', (split m{-}, $date)[1,2];
