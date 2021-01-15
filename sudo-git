@@ -1,0 +1,10 @@
+#!/bin/zsh
+
+command=(
+     env GIT_SSH_COMMAND="ssh -l $USER"
+     SSH_AUTH_SOCK=$SSH_AUTH_SOCK
+     git
+     "$@"
+)
+
+exec sudo $command
