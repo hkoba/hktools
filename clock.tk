@@ -1,0 +1,10 @@
+#!/usr/bin/wish
+
+pack [entry .clock -textvariable DATE_TIME] -fill both -expand yes
+
+proc tick {tick} {
+	set ::DATE_TIME [clock format [clock seconds] -format %H:%M:%S]
+	after $tick [list tick $tick]
+}
+
+tick 1000
