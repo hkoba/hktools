@@ -14,7 +14,8 @@ use File::Basename;
     if ($ARGV[0] eq "-e") {
       shift @ARGV;
       $script .= shift @ARGV // die "Not enough argument for -e";
-    } else {
+    }
+    elsif (not defined $script) {
       $script = do {local $/; local @ARGV = shift @ARGV; <>};
       last;
     }
