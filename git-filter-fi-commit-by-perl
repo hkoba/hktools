@@ -34,9 +34,10 @@ END
     if (my $lineNo
         = $line =~ /^commit /
         .. (my ($origBytes) = $line =~ /^data (\d+)/)) {
-      push @buffer, $line;
       if ($lineNo =~ /E0$/ and $origBytes) {
         print read_n_convert($origBytes, \@buffer, $sub)
+      } else {
+        push @buffer, $line;
       }
     } else {
       print $line;
