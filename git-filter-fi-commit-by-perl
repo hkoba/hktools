@@ -51,7 +51,7 @@ sub read_n_convert {
   unless (read(ARGV, $_, $origBytes)) {
     die $!;
   }
-  $callback->(@$buffer);
+  $callback->($buffer);
   my $newBytes = length($_);
   join(
     "",
