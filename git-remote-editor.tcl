@@ -6,14 +6,63 @@ package require snit
 
 snit::type git-remote-editor {
     option -dir ""
-    option -mapfile ""
     option -src-prefix ""
+    option -src-suffix .git
     option -dest-prefix ""
+
+    option -map ""
+    option -map-file ""
+    onconfigure -map-file fileName {
+        set fh [open $fileName]
+        while {[gets $fh line] >= 0} {
+            lassign [split $line \t] src dest
+            dict set options(-map) $src $dest
+        }
+        close $fh
+    }
 
     method gui args {
         package require Tk
         ${type}::gui .win -target $self {*}$args
         pack .win -fill both -expand yes
+    }
+
+    method rewrite-list {{remote origin} {DIR ""}} {
+        set result []
+        foreach item [$self url-list $remote $DIR] {
+            lassign $item dir remote
+            set remote [$self trim-url $remote]
+            if {![dict exists $options(-map) $remote]} continue
+            set new [$self rewrite-with \
+                         [dict get $options(-map) $remote] $remote]
+            lappend result [list $dir $new]
+        }
+        set result
+    }
+
+    method rewrite-with {spec original} {
+        if {[regexp {/$} $spec]} {
+            return $spec[file tail $original]
+        } else {
+            return $spec
+        }
+    }
+
+    method trim-url url {
+        if {$options(-src-prefix) ne ""} {
+            set len [string length $options(-src-prefix)]
+            if {[string equal -length $len $options(-src-prefix) $url]} {
+                set url [string range $url $len end]
+            }
+        }
+        if {$options(-src-suffix) ne ""} {
+            set pos [expr {[string length $url]
+                           - [string length $options(-src-suffix)]}]
+            if {[string range $url $pos end] eq $options(-src-suffix)} {
+                set url [string range $url 0 [expr {$pos - 1}]]
+            }
+        }
+        set url
     }
 
     method cmd-url-list {{remote origin} {DIR ""}} {
