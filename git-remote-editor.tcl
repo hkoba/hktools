@@ -164,13 +164,37 @@ snit::widget git-remote-editor::gui {
     method Reload {} {
         $myText delete 1.0 end
         # XXX: writable
+        set font [$myText cget -font]
+        set measure []
         foreach item [$myTarget url-list] {
             lassign $item dir now
             set new [$myTarget new-url $now]
             $myText insert end $dir dir \t "" $now now \t "" $new new \n
+            foreach vn {dir now new} {
+                dict set measure $vn \
+                    [max [font measure $font [set $vn]] \
+                        [dict-default $measure $vn 0]]
+            }
             # XXX: column width, tab width
         }
+        set margin [font measure $font "  "]
+        set accm 0
+        $myText configure -tabs \
+            [lmap i [dict values $measure] {
+                set accm [expr {$accm + $i + $margin}]
+            }]
         # XXX: readonly
+    }
+
+    proc max {l r} {
+        expr {$l > $r ? $l : $r}
+    }
+    proc dict-default {dict key default} {
+        if {[dict exists $dict $key]} {
+            dict get $dict $key
+        } else {
+            set default
+        }
     }
 }
 
