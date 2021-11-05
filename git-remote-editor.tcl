@@ -9,6 +9,7 @@ snit::type git-remote-editor {
     option -src-prefix ""
     option -src-suffix .git
     option -dest-prefix ""
+    option -dest-suffix .git
 
     option -map ""
     option -map-file ""
@@ -31,13 +32,19 @@ snit::type git-remote-editor {
         set result []
         foreach item [$self url-list $remote $DIR] {
             lassign $item dir remote
-            set remote [$self trim-url $remote]
-            if {![dict exists $options(-map) $remote]} continue
-            set new [$self rewrite-with \
-                         [dict get $options(-map) $remote] $remote]
+            set new [$self new-url $remote]
+            if {$new eq ""} continue
             lappend result [list $dir $new]
         }
         set result
+    }
+
+    method new-url remote {
+        set remote [$self trim-url $remote]
+        if {![dict exists $options(-map) $remote]} return
+        set stem [$self rewrite-with \
+                      [dict get $options(-map) $remote] $remote]
+        return $options(-dest-prefix)$stem$options(-dest-suffix)
     }
 
     method rewrite-with {spec original} {
@@ -156,10 +163,14 @@ snit::widget git-remote-editor::gui {
 
     method Reload {} {
         $myText delete 1.0 end
+        # XXX: writable
         foreach item [$myTarget url-list] {
-            lassign $item dir remote
-            $myText insert end $dir dir \t "" $remote remote \n
+            lassign $item dir now
+            set new [$myTarget new-url $now]
+            $myText insert end $dir dir \t "" $now now \t "" $new new \n
+            # XXX: column width, tab width
         }
+        # XXX: readonly
     }
 }
 
