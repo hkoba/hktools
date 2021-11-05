@@ -7,6 +7,14 @@ package require snit
 snit::type git-remote-editor {
     option -dir ""
     option -mapfile ""
+    option -src-prefix ""
+    option -dest-prefix ""
+
+    method gui args {
+        package require Tk
+        ${type}::gui .win -target $self {*}$args
+        pack .win -fill both -expand yes
+    }
 
     method cmd-url-list {{remote origin} {DIR ""}} {
         foreach item [$self url-list $remote $DIR] {
@@ -80,6 +88,29 @@ Available methods:
     set i
   }
 }]] \n]"
+    }
+}
+
+snit::widget git-remote-editor::gui {
+
+    component myTarget
+    delegate method * to myTarget
+
+    component myText
+    constructor args {
+        install myTarget using from args -target
+        install myText using text $win.text
+        pack $myText -fill both -expand yes
+
+        after idle [list $self Reload]
+    }
+
+    method Reload {} {
+        $myText delete 1.0 end
+        foreach item [$myTarget url-list] {
+            lassign $item dir remote
+            $myText insert end $dir dir \t "" $remote remote \n
+        }
     }
 }
 
