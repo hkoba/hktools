@@ -6,6 +6,7 @@ package require snit
 
 snit::type git-remote-editor {
     option -dir ""
+    option -remote origin
     option -src-prefix ""
     option -src-suffix .git
     option -dest-prefix ""
@@ -30,6 +31,7 @@ snit::type git-remote-editor {
     }
 
     method rewrite-list {{remote origin} {DIR ""}} {
+        set remote [$self remote $remote]
         set result []
         foreach item [$self url-list $remote $DIR] {
             lassign $item dir remote
@@ -41,6 +43,7 @@ snit::type git-remote-editor {
     }
 
     method new-url remote {
+        set remote [$self remote $remote]
         set remote [$self trim-url $remote]
         if {![dict exists $options(-map) $remote]} return
         set stem [$self rewrite-with \
@@ -74,11 +77,13 @@ snit::type git-remote-editor {
     }
 
     method cmd-url-list {{remote origin} {DIR ""}} {
+        set remote [$self remote $remote]
         foreach item [$self url-list $remote $DIR] {
             puts [join $item \t]
         }
     }
     method url-list {{remote origin} {DIR ""}} {
+        set remote [$self remote $remote]
         set DIR [$self DIR $DIR]
         set result [list [list $DIR [$self git remote-url $remote $DIR]]]
         foreach sub [$self list $DIR] {
@@ -88,6 +93,7 @@ snit::type git-remote-editor {
     }
 
     method {git remote-url} {{remote origin} {DIR ""}} {
+        set remote [$self remote $remote]
         set DIR [$self DIR $DIR]
         exec git -C $DIR config remote.$remote.url
     }
@@ -121,6 +127,16 @@ snit::type git-remote-editor {
             }
         }
         set res
+    }
+
+    method remote {{remote ""}} {
+        if {$remote ne ""} {
+            set remote
+        } elseif {$options(-remote) ne ""} {
+            set options(-remote)
+        } else {
+            return origin
+        }
     }
 
     method DIR {{DIR ""}} {
