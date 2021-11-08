@@ -154,13 +154,34 @@ snit::widget git-remote-editor::gui {
     delegate method * to myTarget
 
     component myText
+
+    option -dry-run no
     constructor args {
         install myTarget using from args -target
+
+        # buttons
+        set bf [ttk::frame $win.bf]
+        pack $bf -fill x -expand yes
+
+        pack [ttk::button $bf.b[incr i] -text Replace -command [list $self Replace]] -side left
+        pack [ttk::checkbutton $bf.b[incr i] -text "dry run" -variable [myvar options(-dry-run)]] -side left
+
         install myText using text $win.text -wrap none
         pack $myText -fill both -expand yes
 
         # XXX: idle だと toplevel の geometry が確定してない
         after 100 [list $self Reload]
+    }
+
+    method Replace {} {
+        foreach item [$myTarget url-list] {
+            lassign $item dir current
+            set new [$myTarget new-url $current]
+            set cmd [list git -C [$myTarget DIR]]
+            if {$options(-dry-run)} {
+                
+            }
+        }
     }
 
     method Reload {} {
