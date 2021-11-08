@@ -155,10 +155,11 @@ snit::widget git-remote-editor::gui {
     component myText
     constructor args {
         install myTarget using from args -target
-        install myText using text $win.text
+        install myText using text $win.text -wrap none
         pack $myText -fill both -expand yes
 
-        after idle [list $self Reload]
+        # XXX: idle だと toplevel の geometry が確定してない
+        after 100 [list $self Reload]
     }
 
     method Reload {} {
@@ -184,6 +185,31 @@ snit::widget git-remote-editor::gui {
                 set accm [expr {$accm + $i + $margin}]
             }]
         # XXX: readonly
+        $self geometry autofit
+    }
+
+    method {geometry autofit} {} {
+        set overflowWidth [window-overflow [$myText xview] [winfo width $myText]]
+        set newGeometry [modify-geometry [wm geometry [winfo toplevel $win]] \
+                 $overflowWidth "" "" ""]
+        wm geometry [winfo toplevel $win] $newGeometry
+    }
+
+    proc modify-geometry {geometry widthDiff heightDiff xDiff yDiff} {
+        lassign [split $geometry x+] \
+            curWidth curHeight curX curY
+        foreach curVar {curWidth curHeight curX curY} diffVar {widthDiff heightDiff xDiff yDiff} {
+            if {[set $diffVar] ne ""} {
+                set $curVar [expr {[set $curVar] + [set $diffVar]}]
+            }
+        }
+        return ${curWidth}x${curHeight}+$curX+$curY
+    }
+
+    proc window-overflow {viewPair current} {
+        lassign $viewPair begin end
+        set ratio [expr {$end - $begin}]
+        expr {int($current * ((1 - $ratio)/$ratio))}
     }
 
     proc max {l r} {
