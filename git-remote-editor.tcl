@@ -23,9 +23,10 @@ snit::type git-remote-editor {
     }
 
     method gui args {
+        set win [from args -widget .win]
         package require Tk
-        ${type}::gui .win -target $self {*}$args
-        pack .win -fill both -expand yes
+        ${type}::gui $win -target $self {*}$args
+        pack $win -fill both -expand yes
     }
 
     method rewrite-list {{remote origin} {DIR ""}} {
@@ -275,11 +276,13 @@ if {![info level] && [info script] eq $::argv0} {
             exit 1
         }
 
+        set moreOpts [${type}::parsePosixOpts args]
+
         if {[$obj info methods cmd-$cmd] ne ""} {
-            $obj cmd-$cmd {*}$args
+            $obj cmd-$cmd {*}$moreOpts {*}$args
         } elseif {[$obj info methods $cmd] ne ""
                   || [$obj info methods [list $cmd *]] ne ""} {
-            puts [$obj $cmd {*}$args]
+            puts [$obj $cmd {*}$moreOpts {*}$args]
         } else {
             puts stderr "No such method: $cmd"
             puts stderr [$obj cmd-usage]
