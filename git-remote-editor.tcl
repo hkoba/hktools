@@ -168,11 +168,14 @@ snit::widget git-remote-editor::gui {
         # XXX: writable
         set font [$myText cget -font]
         set measure []
+
+        $myText tag configure header -borderwidth 2 -relief raised -background palegreen
+        $myText insert end dir {header dir} \t header current {header current} \t header new {header new} \n header
         foreach item [$myTarget url-list] {
-            lassign $item dir now
-            set new [$myTarget new-url $now]
-            $myText insert end $dir dir \t "" $now now \t "" $new new \n
-            foreach vn {dir now new} {
+            lassign $item dir current
+            set new [$myTarget new-url $current]
+            $myText insert end $dir dir \t "" $current current \t "" $new new \n
+            foreach vn {dir current new} {
                 dict set measure $vn \
                     [max [font measure $font [set $vn]] \
                         [dict-default $measure $vn 0]]
