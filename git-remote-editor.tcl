@@ -214,13 +214,19 @@ snit::widget git-remote-editor::gui {
     }
 
     method Replace {} {
-        foreach item [$myTarget url-list] {
-            lassign $item dir current
-            set new [$myTarget new-url $current]
+        foreach item [$self current-list] {
+            puts $item
+            lassign $item dir current new
             set cmd [list git -C [$myTarget DIR]]
             if {$options(-dry-run)} {
                 
             }
+        }
+    }
+
+    method current-list {} {
+        lmap i [split [$myText get header.last end-1c] \n] {
+            split $i \t
         }
     }
 
