@@ -149,6 +149,10 @@ snit::type git-remote-editor {
         }
     }
 
+    method myvar {varName} {
+        myvar $varName
+    }
+
     method cmd-usage args {
         return "\
 Usage: [file tail [info script]] \[--option=value\] METHOD ARGS...
@@ -171,16 +175,36 @@ snit::widget git-remote-editor::gui {
 
     component myText
 
-    option -dry-run no
+    option -dry-run 0
     constructor args {
         install myTarget using from args -target
 
+        $self configurelist $args
+
         # buttons
         set bf [ttk::frame $win.bf]
-        pack $bf -fill x -expand yes
+        pack $bf -fill x -expand no
 
         pack [ttk::button $bf.b[incr i] -text Replace -command [list $self Replace]] -side left
-        pack [ttk::checkbutton $bf.b[incr i] -text "dry run" -variable [myvar options(-dry-run)]] -side left
+        pack [ttk::checkbutton $bf.b[incr i] -text "dry run" \
+                  -onvalue 1 -offvalue 0 \
+                  -variable [myvar options(-dry-run)]] -side left
+
+        # configs
+        set cf [ttk::frame $win.cf]
+        pack $cf -fill x -expand no
+
+        pack [ttk::labelframe [set f $cf.w[incr i]] -text "remote"] -side left -padx 0
+        pack [ttk::entry [set e $f.w] -textvariable [$myTarget myvar options(-remote)]]
+        bind $e <Return> [list $self Reload]
+
+        pack [ttk::labelframe [set f $cf.w[incr i]] -text "src-prefix"] -side left -padx 0
+        pack [ttk::entry [set e $f.w[incr i]] -textvariable [$myTarget myvar options(-src-prefix)] -width 30]
+        bind $e <Return> [list $self Reload]
+
+        pack [ttk::labelframe [set f $cf.w[incr i]] -text "dest-prefix"] -side left -padx 0
+        pack [ttk::entry [set e $f.w[incr i]] -textvariable [$myTarget myvar options(-dest-prefix)] -width 30]
+        bind $e <Return> [list $self Reload]
 
         install myText using text $win.text -wrap none
         pack $myText -fill both -expand yes
