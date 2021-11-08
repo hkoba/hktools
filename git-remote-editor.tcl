@@ -176,6 +176,7 @@ snit::widget git-remote-editor::gui {
     component myText
 
     option -dry-run 0
+    option -undo 0
     constructor args {
         install myTarget using from args -target
 
@@ -189,6 +190,7 @@ snit::widget git-remote-editor::gui {
         pack [ttk::checkbutton $bf.b[incr i] -text "dry run" \
                   -onvalue 1 -offvalue 0 \
                   -variable [myvar options(-dry-run)]] -side left
+        pack [ttk::button $bf.b[incr i] -text Undo -command [list $self Replace undo yes]] -side left
 
         # configs
         set cf [ttk::frame $win.cf]
@@ -213,14 +215,20 @@ snit::widget git-remote-editor::gui {
         after 100 [list $self Reload]
     }
 
-    method Replace {} {
+    method Replace {args} {
+        set undo [dict-default $args undo no]
+        set remote [$myTarget remote]
         foreach item [$self current-list] {
-            puts $item
             lassign $item dir current new
-            set cmd [list git -C [$myTarget DIR]]
-            if {$options(-dry-run)} {
-                
-            }
+            if {$new eq ""} continue
+            set cmd [if {$undo} {
+                list git -C $dir config remote.$remote.url $current
+            } else {
+                list git -C $dir config remote.$remote.url $new
+            }]
+            puts $cmd
+            if {$options(-dry-run)} continue
+            exec {*}$cmd >@ stdout 2>@ stderr
         }
     }
 
