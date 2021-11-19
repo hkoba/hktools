@@ -53,6 +53,23 @@ snit::type git-remote-editor {
         set result
     }
 
+    method cmd-full-rewrite-map {} {
+        set dict [$self full-rewrite-map]
+        foreach cur [dict keys $dict] {
+            puts $cur\t[dict get $dict $cur]
+        }
+    }
+
+    method full-rewrite-map {} {
+        set dict [dict create]
+        foreach cur [dict keys $options(-map)] {
+            dict set dict $options(-src-prefix)$cur \
+                $options(-dest-prefix)[$self rewrite-with \
+                                           [dict get $options(-map) $cur] $cur]
+        }
+        set dict
+    }
+
     method new-url remote {
         set remote [$self remote $remote]
         set remote [$self trim-url $remote]
