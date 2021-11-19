@@ -1,0 +1,61 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use File::Basename;
+
+{
+  if (not @ARGV) {
+    die "Usage: @{[basename $0]} [[-e *PERL_SCRIPT*] | PROGRAMFILE] ...\n";
+  }
+
+  my $script;
+
+  while (@ARGV) {
+    if ($ARGV[0] eq "-e") {
+      shift @ARGV;
+      $script .= shift @ARGV // die "Not enough argument for -e";
+    }
+    elsif (not defined $script) {
+      $script = do {local $/; local @ARGV = shift @ARGV; <>};
+      last;
+    }
+  }
+
+  my $sub = eval <<END;
+sub {
+$script
+}
+END
+
+  die "$@\nSCRIPT: $script" if $@;
+
+  my @buffer;
+  while (defined(my $line = <<>>)) {
+    if (my $lineNo
+        = $line =~ /^commit /
+        .. (my ($origBytes) = $line =~ /^data (\d+)/)) {
+      if ($lineNo =~ /E0$/ and $origBytes) {
+        print read_n_convert($origBytes, \@buffer, $sub)
+      } else {
+        push @buffer, $line;
+      }
+    } else {
+      print $line;
+    }
+  }
+}
+
+sub read_n_convert {
+  my ($origBytes, $buffer, $callback) = @_;
+  local $_ = "";
+  unless (read(ARGV, $_, $origBytes)) {
+    die $!;
+  }
+  $callback->($buffer);
+  my $newBytes = length($_);
+  join(
+    "",
+    splice(@$buffer),
+    "data $newBytes\n$_",
+  )
+}
