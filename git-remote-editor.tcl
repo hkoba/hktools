@@ -30,6 +30,17 @@ snit::type git-remote-editor {
         pack $win -fill both -expand yes
     }
 
+    method cmd-info args {
+        set result [$self info {*}$args]
+        if {[lindex $args 0] eq "methods"} {
+            set result [lmap i $result {
+                if {[regexp ^cmd- $i]} continue
+                set i
+            }]
+        }
+        puts [join $result \n]
+    }
+
     method rewrite-list {{remote origin} {DIR ""}} {
         set remote [$self remote $remote]
         set result []
