@@ -79,6 +79,16 @@ snit::type git-remote-editor {
         return $options(-dest-prefix)$stem$options(-dest-suffix)
     }
 
+    method cmd-map args {
+        puts [join [$self map {*}$args] \n]
+    }
+    method map args {
+        lmap i $args {
+            $self rewrite-with \
+                [dict get $options(-map) $i] $i
+        }
+    }
+
     method rewrite-with {spec original} {
         if {[regexp {/$} $spec]} {
             return $spec[file tail $original]
