@@ -1,8 +1,9 @@
 #!/usr/bin/tclsh
 # -*- mode: tcl; tab-width: 4; coding: utf-8 -*-
 
-package require Tcl 8.6
+package require Tcl 8.5
 package require snit
+package require struct::list
 
 snit::type git-remote-editor {
     option -dir ""
@@ -14,6 +15,14 @@ snit::type git-remote-editor {
 
     option -map ""
     option -map-file ""
+
+    variable myGitHasChdirOption ""
+
+    constructor args {
+        $self configurelist $args
+        set myGitHasChdirOption [expr {[package vcompare [lindex [exec git --version] end] 1.8.4.1] >= 0}]
+    }
+
     onconfigure -map-file fileName {
         set fh [open $fileName]
         while {[gets $fh line] >= 0} {
@@ -33,7 +42,7 @@ snit::type git-remote-editor {
     method cmd-info args {
         set result [$self info {*}$args]
         if {[lindex $args 0] eq "methods"} {
-            set result [lmap i $result {
+            set result [struct::list mapfor i $result {
                 if {[regexp ^cmd- $i]} continue
                 set i
             }]
@@ -83,7 +92,7 @@ snit::type git-remote-editor {
         puts [join [$self map {*}$args] \n]
     }
     method map args {
-        lmap i $args {
+        struct::list mapfor i $args {
             $self rewrite-with \
                 [dict get $options(-map) $i] $i
         }
@@ -133,27 +142,27 @@ snit::type git-remote-editor {
     method {git remote-url} {{remote origin} {DIR ""}} {
         set remote [$self remote $remote]
         set DIR [$self DIR $DIR]
-        exec git -C $DIR config remote.$remote.url
+        $self chdir-git $DIR config remote.$remote.url
     }
 
     method list {{DIR ""}} {
         set DIR [$self DIR $DIR]
         set result []
         foreach sub [$self submodule list $DIR] {
-            lappend result $sub {*}[lmap i [$self list $DIR/$sub] {
-                string cat $DIR/$sub/$i
+            lappend result $sub {*}[struct::list mapfor i [$self list $DIR/$sub] {
+                value $DIR/$sub/$i
             }]
         }
         set result
     }
 
     method {submodule list} {{DIR ""}} {
-        lmap i [$self submodule detail $DIR] {lindex $i 2}
+        struct::list mapfor i [$self submodule detail $DIR] {lindex $i 2}
     }
 
     method {submodule detail} {{DIR ""}} {
         set DIR [$self DIR $DIR]
-        set out [exec git -C $DIR submodule status 2>@ stderr]
+        set out [$self submodule status-in $DIR]
         set res []
         foreach line [split $out \n] {
             if {[regexp {^(.)(.{40}) (\S+)(?: \((.*)\))?$} $line -> state hash dir rev]} {
@@ -165,6 +174,22 @@ snit::type git-remote-editor {
             }
         }
         set res
+    }
+
+    method {submodule status-in} {DIR} {
+        $self chdir-git $DIR submodule status 2>@ stderr
+    }
+
+    method {chdir-git} {DIR args} {
+        if {$myGitHasChdirOption} {
+            exec git -C $DIR {*}$args
+        } else {
+            set cwd [pwd]
+            cd $DIR
+            set result [exec git {*}$args]
+            cd $cwd
+            set result
+        }
     }
 
     method remote {{remote ""}} {
@@ -195,7 +220,7 @@ snit::type git-remote-editor {
         return "\
 Usage: [file tail [info script]] \[--option=value\] METHOD ARGS...
 Available methods:
-[join [lsort [lmap i [$self info methods] {
+[join [lsort [struct::list mapfor i [$self info methods] {
   if {$i in {cget configure configurelist destroy}} continue
   if {[regexp ^cmd-(.*) $i -> rest]} {
     set rest
@@ -203,6 +228,10 @@ Available methods:
     set i
   }
 }]] \n]"
+    }
+
+    proc value value {
+        set value
     }
 }
 
@@ -260,9 +289,9 @@ snit::widget git-remote-editor::gui {
             lassign $item dir current new
             if {$new eq ""} continue
             set cmd [if {$undo} {
-                list git -C $dir config remote.$remote.url $current
+                list git --work-tree=$dir config remote.$remote.url $current
             } else {
-                list git -C $dir config remote.$remote.url $new
+                list git --work-tree=$dir config remote.$remote.url $new
             }]
             puts $cmd
             if {$options(-dry-run)} continue
@@ -271,7 +300,7 @@ snit::widget git-remote-editor::gui {
     }
 
     method current-list {} {
-        lmap i [split [$myText get header.last end-1c] \n] {
+        struct::list mapfor i [split [$myText get header.last end-1c] \n] {
             split $i \t
         }
     }
@@ -298,7 +327,7 @@ snit::widget git-remote-editor::gui {
         set margin [font measure $font "  "]
         set accm 0
         $myText configure -tabs \
-            [lmap i [dict values $measure] {
+            [struct::list mapfor i [dict values $measure] {
                 set accm [expr {$accm + $i + $margin}]
             }]
         # XXX: readonly
