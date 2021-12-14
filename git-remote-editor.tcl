@@ -32,6 +32,10 @@ snit::type git-remote-editor {
         close $fh
     }
 
+    method GitHasChdirOption {} {
+        set myGitHasChdirOption
+    }
+
     method gui args {
         set win [from args -widget .win]
         package require Tk
@@ -289,13 +293,17 @@ snit::widget git-remote-editor::gui {
             lassign $item dir current new
             if {$new eq ""} continue
             set cmd [if {$undo} {
-                list git --work-tree=$dir config remote.$remote.url $current
+                list git -C $dir config remote.$remote.url $current
             } else {
-                list git --work-tree=$dir config remote.$remote.url $new
+                list git -C $dir config remote.$remote.url $new
             }]
             puts $cmd
             if {$options(-dry-run)} continue
-            exec {*}$cmd >@ stdout 2>@ stderr
+            if {[$myTarget GitHasChdirOption]} {
+                exec {*}$cmd >@ stdout 2>@ stderr
+            } else {
+                $myTarget chdir-git $dir {*}[lrange $cmd 3 end]
+            }
         }
     }
 
