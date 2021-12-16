@@ -152,8 +152,12 @@ snit::type git-remote-editor {
     method list {{DIR ""}} {
         set DIR [$self DIR $DIR]
         set result []
-        foreach sub [$self submodule list $DIR] {
-            lappend result $sub {*}[struct::list mapfor i [$self list $DIR/$sub] {
+        foreach item [$self submodule detail $DIR] {
+            lassign $item status commit sub
+            lappend result $sub
+            if {$status eq "-"} continue
+            set subList [$self list $DIR/$sub]
+            lappend result {*}[struct::list mapfor i $subList {
                 value $DIR/$sub/$i
             }]
         }
