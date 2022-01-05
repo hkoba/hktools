@@ -54,7 +54,7 @@ snit::type git-remote-editor {
         puts [join $result \n]
     }
 
-    method rewrite-list {{remote origin} {DIR ""}} {
+    method rewrite-list {{remote ""} {DIR ""}} {
         set remote [$self remote $remote]
         set result []
         foreach item [$self url-list $remote $DIR] {
@@ -127,13 +127,13 @@ snit::type git-remote-editor {
         set url
     }
 
-    method cmd-url-list {{remote origin} {DIR ""}} {
+    method cmd-url-list {{remote ""} {DIR ""}} {
         set remote [$self remote $remote]
         foreach item [$self url-list $remote $DIR] {
             puts [join $item \t]
         }
     }
-    method url-list {{remote origin} {DIR ""}} {
+    method url-list {{remote ""} {DIR ""}} {
         set remote [$self remote $remote]
         set DIR [$self DIR $DIR]
         set result [list [list $DIR [$self git remote-url $remote $DIR]]]
@@ -143,7 +143,7 @@ snit::type git-remote-editor {
         set result
     }
 
-    method {git remote-url} {{remote origin} {DIR ""}} {
+    method {git remote-url} {{remote ""} {DIR ""}} {
         set remote [$self remote $remote]
         set DIR [$self DIR $DIR]
         $self chdir-git $DIR config remote.$remote.url
