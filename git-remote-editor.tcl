@@ -138,7 +138,12 @@ snit::type git-remote-editor {
         set DIR [$self DIR $DIR]
         set result [list [list $DIR [$self git remote-url $remote $DIR]]]
         foreach sub [$self list $DIR] {
-            lappend result [list $sub [$self git remote-url $remote $sub]]
+            if {[lindex [file split $sub] 0] eq ".."} {
+                error "Please run from git toplevel! (submodule directory became $sub)"
+            }
+            lappend result [list $sub [if {$remote in [$self chdir-git $sub remote]} {
+                $self git remote-url $remote $sub
+            }]]
         }
         set result
     }
@@ -190,6 +195,7 @@ snit::type git-remote-editor {
 
     method {chdir-git} {DIR args} {
         if {$myGitHasChdirOption} {
+            # puts [list RUNNING: git -C $DIR {*}$args]
             exec git -C $DIR {*}$args
         } else {
             set cwd [pwd]
