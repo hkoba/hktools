@@ -34,7 +34,7 @@ END
     if (my $lineNo
         = $line =~ /^commit /
         .. (my ($origBytes) = $line =~ /^data (\d+)/)) {
-      if ($lineNo =~ /E0$/ and $origBytes) {
+      if ($lineNo =~ /E0$/ and defined $origBytes) {
         print read_n_convert($origBytes, \@buffer, $sub)
       } else {
         push @buffer, $line;
@@ -48,7 +48,7 @@ END
 sub read_n_convert {
   my ($origBytes, $buffer, $callback) = @_;
   local $_ = "";
-  unless (read(ARGV, $_, $origBytes)) {
+  unless (defined read(ARGV, $_, $origBytes)) {
     die $!;
   }
   $callback->($buffer);
