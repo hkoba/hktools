@@ -86,9 +86,12 @@ snit::type git-remote-editor {
     method new-url remote {
         set remote [$self remote $remote]
         set remote [$self trim-url $remote]
-        if {![dict exists $options(-map) $remote]} return
-        set stem [$self rewrite-with \
-                      [dict get $options(-map) $remote] $remote]
+        set stem [if {[dict exists $options(-map) $remote]} {
+            $self rewrite-with \
+                [dict get $options(-map) $remote] $remote
+        } else {
+            set remote
+        }]
         return $options(-dest-prefix)$stem$options(-dest-suffix)
     }
 
