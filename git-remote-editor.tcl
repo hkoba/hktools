@@ -305,6 +305,7 @@ snit::widget git-remote-editor::gui {
         foreach item [$self current-list] {
             lassign $item dir current new
             if {$new eq ""} continue
+            if {$new eq $current} continue
             set cmd [if {$undo} {
                 list git -C $dir config remote.$remote.url $current
             } else {
