@@ -4,6 +4,7 @@
 package require Tcl 8.5
 package require snit
 package require struct::list
+package require fileutil
 
 snit::type git-remote-editor {
     option -dir ""
@@ -199,13 +200,24 @@ snit::type git-remote-editor {
     method {chdir-git} {DIR args} {
         if {$myGitHasChdirOption} {
             # puts [list RUNNING: git -C $DIR {*}$args]
-            exec git -C $DIR {*}$args
+            exec git -C [$self path-resolve $DIR] {*}$args
         } else {
             set cwd [pwd]
-            cd $DIR
+            cd [$self path-resolve $DIR]
             set result [exec git {*}$args]
             cd $cwd
             set result
+        }
+    }
+
+    method path-resolve {dir} {
+        switch [file pathtype $dir] {
+            absolute { set dir }
+            relative {
+                file join {*}[file split $options(-dir)] \
+                    {*}[file split $dir] \
+            }
+            * { error "Unknown pathtype: $dir"}
         }
     }
 
