@@ -20,11 +20,10 @@ ed
 xauth
 xterm
 
-# For xload
-xorg-x11-apps
+/usr/bin/xload
 
-# For xset, xkill
-xorg-x11-server-utils
+/usr/bin/xkill
+/usr/bin/xsel
 
 xorg-x11-font-utils
 xorg-x11-fonts-100dpi
