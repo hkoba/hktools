@@ -1,6 +1,5 @@
 gdb-doc
 gdb-headless
 gdb-gdbserver
-gdb-heap
 
 jq
