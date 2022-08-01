@@ -41,6 +41,7 @@ catch {
 set opts [cmdline::getoptions argv {
     {encoding.arg utf-8 "input file encoding"}
     {debug no "debug"}
+    {parser.arg {} "parser options"}
 }]
 
 proc tdom_open {fn opts} {
@@ -49,31 +50,36 @@ proc tdom_open {fn opts} {
     if {[llength [info commands $opener]]} {
 	$opener $fn $opts
     } else {
-	return [open_chan $fn -encoding [dict get $opts encoding]]
+	list -channel [open_chan $fn -encoding [dict get $opts encoding]]
     }
 }
 
 proc tdom_open.html {fn opts} {
-    list [open_chan $fn -encoding [dict get $opts encoding]] \
-	-html
+    set data [read_enc $fn -encoding [dict get $opts encoding]]
+    list $data
 }
 
 proc tdom_open.docx {fn opts} {
-    open_chan [list | unzip -qc $fn word/document.xml] \
-	-encoding utf-8
+    list -channel [open_chan [list | unzip -qc $fn word/document.xml] \
+                       -encoding utf-8]
 }
 
 proc tdom_open.odt {fn opts} {
-    open_chan [list | unzip -qc $fn content.xml] \
-	-encoding utf-8
+    list -channel [open_chan [list | unzip -qc $fn content.xml] \
+                       -encoding utf-8]
 }
 
 proc tdom_file_apply {opts fn method nodeVar cmdBody {emitCmd puts} args} {
     upvar 1 $nodeVar node
 
     set fd_opts [tdom_open $fn $opts]
-    dom parse -channel {*}$fd_opts doc
-    close [lindex $fd_opts 0]
+    dom parse {*}$fd_opts doc
+    close [if {[lindex $fd_opts 0] eq "-channel"} {
+        lindex $fd_opts 1
+    } else {
+        lindex $fd_opts 0
+    }]
+    
 
     $doc documentElement root
     set rc [catch {$root {*}$method} found]
@@ -130,6 +136,14 @@ proc tdom_auto_command argList {
 	    list [list selectNodes $xpath] node \
 		[list apply [list node "\$node $method"]]
 	}
+    }
+}
+
+proc dict-default {dict key {default ""}} {
+    if {[dict exists $dict $key]} {
+        dict get $dict $key
+    } else {
+        set default
     }
 }
 
