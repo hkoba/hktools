@@ -21,9 +21,22 @@ sub MY () {__PACKAGE__}
     shift;
   }
 
-  @headers or usage();
-
-  print tsv(@headers) unless $opts->{o_noheader};
+  if (not @headers) {
+    defined($_ = <>)
+      or exit;
+    chomp;
+    my @cols;
+    foreach my $cell (split "\t") {
+      my ($label, $value) = split ":", $cell, 2;
+      push @headers, $label;
+      push @cols, $value;
+    }
+    print tsv(@headers);
+    print tsv(@cols);
+  }
+  elsif (not $opts->{o_noheader}) {
+    print tsv(@headers);
+  }
   while (<>) {
     chomp;
     my @pairs = map {split ":", $_, 2} split "\t";
