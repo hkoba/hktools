@@ -10,7 +10,9 @@ use Getopt::Long qw(:config pass_through);
 
 sub usage {
   die <<END
-Usage: $0 CMD ARGS...
+Usage: jsonrpc-run.pl CMD ARGS...
+
+For example: jsonrpc-run.pl -v deno --log-level=debug lsp
 END
 }
 
