@@ -6,7 +6,7 @@ use Symbol 'gensym';
 use IPC::Open2;
 use IO::Handle;
 
-use Getopt::Long;
+use Getopt::Long qw(:config pass_through);
 
 sub usage {
   die <<END
