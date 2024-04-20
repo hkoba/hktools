@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use sigtrap qw(die normal-signals);
 use Symbol 'gensym';
-use IPC::Open3;
+use IPC::Open2;
 use IO::Handle;
 
 use Getopt::Long;
@@ -21,8 +21,8 @@ END
   my ($cmd, @args) = @ARGV
     or usage();
 
-  my $pid = open3(
-    my $chld_in, my $chld_out, my $chld_err = gensym
+  my $pid = open2(
+    my $chld_out, my $chld_in
     , $cmd, @args
   ) or die "Can't run $cmd @args";
 
