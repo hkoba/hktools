@@ -27,7 +27,7 @@ snit::widget text-nowrap {
 
         install mySearch using entry $win.search
         
-        pack $mySearch -fill x -expand yes -side top
+        pack $mySearch -fill x -expand no -side top
         
         $self interactive
     }
