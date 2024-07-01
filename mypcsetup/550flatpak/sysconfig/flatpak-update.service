@@ -1,0 +1,7 @@
+[Unit]
+Description=Flatpak update
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flatpak update -y
