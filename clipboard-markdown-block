@@ -1,0 +1,5 @@
+#!/bin/zsh
+
+xsel -bo |
+perl -ple 'print "\n".q{```} if $. == 1; END {print q{```}}'|
+xsel -ib
